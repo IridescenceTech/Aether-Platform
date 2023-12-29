@@ -8,7 +8,7 @@ pub fn main() !void {
         .width = 800,
         .height = 600,
         .title = "Hello, World!",
-        .graphics_api = .OpenGL,
+        .graphics_api = .Vulkan,
     });
 
     defer platform.deinit();

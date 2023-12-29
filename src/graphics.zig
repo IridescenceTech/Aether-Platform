@@ -2,6 +2,7 @@ const Allocator = @import("allocator.zig");
 const t = @import("types");
 
 const OGL = @import("graphics/OpenGL.zig");
+const VK = @import("graphics/Vulkan.zig");
 
 var engine: t.GraphicsEngine = undefined;
 
@@ -10,6 +11,10 @@ pub fn init(options: t.EngineOptions) !void {
     switch (options.graphics_api) {
         .OpenGL => {
             var g = try alloc.create(OGL);
+            engine = g.interface();
+        },
+        .Vulkan => {
+            var g = try alloc.create(VK);
             engine = g.interface();
         },
         else => {

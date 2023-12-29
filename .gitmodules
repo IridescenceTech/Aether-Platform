@@ -4,3 +4,6 @@
 [submodule "ext/glad"]
 	path = ext/glad
 	url = git@github.com:IridescenceTech/Aether-GLAD.git
+[submodule "ext/vulkan"]
+	path = ext/vulkan
+	url = git@github.com:Snektron/vulkan-zig.git

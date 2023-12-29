@@ -1,4 +1,5 @@
 const std = @import("std");
+const glad = @import("glad");
 const Allocator = @import("../allocator.zig");
 const t = @import("types");
 const zwin = @import("zwin");
@@ -13,6 +14,20 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
+    if (glad.gladLoadGL(@ptrCast(&zwin.getGLProcAddr)) == 0) {
+        return error.OGLLoadError;
+    }
+
+    // Get GL Version
+    var str = glad.glGetString(glad.GL_VERSION);
+    std.debug.print("OpenGL Version: {s}\n", .{str});
+
+    glad.glViewport(0, 0, width, height);
+    glad.glEnable(glad.GL_DEPTH_TEST);
+    glad.glEnable(glad.GL_CULL_FACE);
+    glad.glCullFace(glad.GL_BACK);
+    glad.glFrontFace(glad.GL_CCW);
+    glad.glClearColor(1.0, 0.0, 0.0, 1.0);
 }
 
 pub fn deinit(ctx: *anyopaque) void {
@@ -23,11 +38,11 @@ pub fn deinit(ctx: *anyopaque) void {
 
 pub fn start_frame(ctx: *anyopaque) void {
     _ = ctx;
+    glad.glClear(glad.GL_COLOR_BUFFER_BIT | glad.GL_DEPTH_BUFFER_BIT);
 }
 
 pub fn end_frame(ctx: *anyopaque) void {
     _ = ctx;
-
     zwin.render();
 }
 

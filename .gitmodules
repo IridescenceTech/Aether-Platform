@@ -1,3 +1,6 @@
 [submodule "ext/zwin"]
 	path = ext/zwin
 	url = git@github.com:IridescenceTech/zwin.git
+[submodule "ext/glad"]
+	path = ext/glad
+	url = git@github.com:IridescenceTech/Aether-GLAD.git

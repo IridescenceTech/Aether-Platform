@@ -60,7 +60,7 @@ pub const GraphicsEngine = struct {
 
     /// Ends a frame, sends commands to GPU
     pub fn end_frame(self: GraphicsEngine) void {
-        self.tab.start_frame(self.ptr);
+        self.tab.end_frame(self.ptr);
     }
 
     /// Sets the vsync mode

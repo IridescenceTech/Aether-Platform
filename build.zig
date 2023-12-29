@@ -1,4 +1,5 @@
 const std = @import("std");
+const vkgen = @import("ext/vulkan/generator/index.zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -24,12 +25,15 @@ pub fn build(b: *std.Build) void {
         .{ .source_file = .{ .path = "src/types.zig" } },
     );
 
+    const gen = vkgen.VkGenerateStep.create(b, "ext/vk.xml");
+
     const platform = b.addModule("platform", .{
         .source_file = .{ .path = "src/platform.zig" },
         .dependencies = &.{
             .{ .name = "types", .module = types },
             .{ .name = "zwin", .module = zwin },
             .{ .name = "glad", .module = glad },
+            .{ .name = "vulkan", .module = gen.getModule() },
         },
     });
 

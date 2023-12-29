@@ -5,17 +5,30 @@ const OGL = @import("graphics/OpenGL.zig");
 const VK = @import("graphics/Vulkan.zig");
 
 var engine: t.GraphicsEngine = undefined;
+var type_size: usize = 0;
+
+fn allocate_engine(comptime T: type) !*T {
+    const size = @sizeOf(T);
+    const alloc = try Allocator.allocator();
+    var ptr = try alloc.alloc(u8, size);
+
+    var data = @as(*T, @ptrCast(@alignCast(ptr.ptr)));
+    data.* = T{};
+
+    return data;
+}
 
 pub fn init(options: t.EngineOptions) !void {
-    var alloc = try Allocator.allocator();
     switch (options.graphics_api) {
         .OpenGL => {
-            var g = try alloc.create(OGL);
+            var g = try allocate_engine(OGL);
             engine = g.interface();
+            type_size = @sizeOf(OGL);
         },
         .Vulkan => {
-            var g = try alloc.create(VK);
+            var g = try allocate_engine(VK);
             engine = g.interface();
+            type_size = @sizeOf(VK);
         },
         else => {
             @panic("Unsupported Graphics API!");
@@ -26,6 +39,11 @@ pub fn init(options: t.EngineOptions) !void {
 }
 
 pub fn deinit() void {
+    var alloc = Allocator.allocator() catch return;
+    var slice: []u8 = undefined;
+    slice.len = type_size;
+    slice.ptr = @as([*]u8, @ptrCast(engine.ptr));
+    alloc.free(slice);
     engine.deinit();
 }
 

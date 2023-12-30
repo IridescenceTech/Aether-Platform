@@ -7,14 +7,14 @@ const Self = @This();
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     _ = ctx;
-    try zwin.init(.OpenGL, 4, 6);
+    try zwin.init(.GLES, 3, 2);
 
     const alloc = try Allocator.allocator();
     var copy = try alloc.dupeZ(u8, title);
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
-    if (glad.gladLoadGL(@ptrCast(&zwin.getGLProcAddr)) == 0) {
+    if (glad.gladLoadGLES2(@ptrCast(&zwin.getGLProcAddr)) == 0) {
         return error.OGLLoadError;
     }
 

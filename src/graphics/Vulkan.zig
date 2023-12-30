@@ -1,11 +1,15 @@
 const std = @import("std");
-const Allocator = @import("../allocator.zig");
 const t = @import("types");
 const zwin = @import("zwin");
+const vk = @import("vulkan");
+
 const Self = @This();
+const Allocator = @import("../allocator.zig");
 const Context = @import("Vulkan/Context.zig");
+const Swapchain = @import("Vulkan/Swapchain.zig");
 
 context: Context = Context{},
+swapchain: Swapchain = undefined,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     var self = t.coerce_ptr(Self, ctx);
@@ -18,6 +22,10 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     try zwin.createWindow(width, height, copy, false);
 
     try self.context.init(copy);
+
+    var extent = vk.Extent2D{ .width = width, .height = height };
+    var swapchain = try Swapchain.init(&self.context, alloc, extent);
+    defer swapchain.deinit();
 }
 
 pub fn deinit(ctx: *anyopaque) void {

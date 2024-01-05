@@ -260,7 +260,8 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
-    if (glad.gladLoadGL(@ptrCast(&zwin.getGLProcAddr)) == 0) {
+    std.log.info("Window created", .{});
+    if (glad.aether_loadgl() == 0) {
         return error.OGLLoadError;
     }
 

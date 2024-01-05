@@ -14,7 +14,7 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
-    if (glad.gladLoadGLES2(@ptrCast(&zwin.getGLProcAddr)) == 0) {
+    if (glad.aether_loadgles() == 0) {
         return error.OGLLoadError;
     }
 

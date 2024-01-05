@@ -1,6 +1,6 @@
 const Allocator = @import("allocator.zig");
 const t = @import("types.zig");
-
+const std = @import("std");
 const OGL = @import("graphics/OpenGL.zig");
 const VK = @import("graphics/Vulkan.zig");
 const GLES = @import("graphics/GLES.zig");
@@ -40,6 +40,8 @@ pub fn init(options: t.EngineOptions) !void {
             @panic("Unsupported Graphics API!");
         },
     }
+
+    std.log.info("Initializing Graphics Engine...", .{});
 
     try engine.init(options.width, options.height, options.title);
 }

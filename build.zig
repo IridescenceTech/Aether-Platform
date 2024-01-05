@@ -41,9 +41,14 @@ pub fn build(b: *std.Build) void {
     exe.linkLibC();
     exe.linkSystemLibrary("glfw");
     exe.addIncludePath(.{ .path = "ext/glad/include" });
+    exe.addIncludePath(.{ .path = "ext/glad/" });
     exe.addCSourceFile(.{
         .file = .{ .path = "ext/glad/src/gl.c" },
         .flags = &[_][]const u8{"-Iext/glad/include"},
+    });
+    exe.addCSourceFile(.{
+        .file = .{ .path = "ext/glad/loader.c" },
+        .flags = &[_][]const u8{"-Iext/glad/"},
     });
     b.installArtifact(exe);
 

@@ -1,6 +1,10 @@
 const std = @import("std");
 const platform = @import("platform");
 
+pub const std_options = struct {
+    pub const log_level = .info;
+};
+
 const Vertex = struct {
     pub const Layout = platform.Types.VertexLayout{
         .size = @sizeOf(Vertex),
@@ -24,18 +28,19 @@ pub fn main() !void {
     try platform.base_init();
 
     try platform.init(.{
-        .width = 800,
-        .height = 600,
+        .width = 960,
+        .height = 544,
         .title = "Hello, World!",
         .graphics_api = .OpenGL,
     });
+    std.log.info("Hello, World!", .{});
 
     defer platform.deinit();
 
     var g = platform.Graphics.get_interface();
 
     var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
-    //defer mesh.deinit();
+    defer mesh.deinit();
 
     try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF });
     try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000 });
@@ -46,23 +51,18 @@ pub fn main() !void {
     try mesh.indices.append(2);
 
     mesh.update();
-    var mesh_alive: bool = true;
-    var curr_time = std.time.nanoTimestamp();
+
+    var curr_time = std.time.milliTimestamp();
 
     while (!g.should_close()) {
-        platform.poll_events();
-        g.start_frame();
-
-        if (mesh_alive) {
-            mesh.draw();
-
-            if (std.time.nanoTimestamp() - curr_time > 2_000_000_000) {
-                curr_time = std.time.nanoTimestamp();
-                mesh_alive = !mesh_alive;
-                mesh.deinit();
-            }
+        const new_time = std.time.milliTimestamp();
+        if (new_time - curr_time > 1000 / 144) {
+            platform.poll_events();
+            curr_time = new_time;
         }
 
+        g.start_frame();
+        mesh.draw();
         g.end_frame();
     }
 }

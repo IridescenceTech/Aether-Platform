@@ -1,7 +1,7 @@
 const std = @import("std");
 const glad = @import("glad");
 const Allocator = @import("../allocator.zig");
-const t = @import("types");
+const t = @import("../types.zig");
 const zwin = @import("zwin");
 const Self = @This();
 
@@ -55,6 +55,12 @@ pub fn should_close(ctx: *anyopaque) bool {
     return zwin.shouldClose();
 }
 
+pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
+    _ = ctx;
+    var tmesh: t.MeshInternal = undefined;
+    return tmesh;
+}
+
 pub fn interface(self: *Self) t.GraphicsEngine {
     return .{
         .ptr = self,
@@ -65,6 +71,7 @@ pub fn interface(self: *Self) t.GraphicsEngine {
             .end_frame = end_frame,
             .set_vsync = set_vsync,
             .should_close = should_close,
+            .create_mesh_internal = create_mesh_internal,
         },
     };
 }

@@ -1,5 +1,5 @@
 const Allocator = @import("allocator.zig");
-const t = @import("types");
+const t = @import("types.zig");
 
 const OGL = @import("graphics/OpenGL.zig");
 const VK = @import("graphics/Vulkan.zig");

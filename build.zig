@@ -20,17 +20,11 @@ pub fn build(b: *std.Build) void {
         .source_file = .{ .path = "ext/glad/c.zig" },
     });
 
-    const types = b.addModule(
-        "types",
-        .{ .source_file = .{ .path = "src/types.zig" } },
-    );
-
     const gen = vkgen.VkGenerateStep.create(b, "ext/vk.xml");
 
     const platform = b.addModule("platform", .{
         .source_file = .{ .path = "src/platform.zig" },
         .dependencies = &.{
-            .{ .name = "types", .module = types },
             .{ .name = "zwin", .module = zwin },
             .{ .name = "glad", .module = glad },
             .{ .name = "vulkan", .module = gen.getModule() },

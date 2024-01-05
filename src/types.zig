@@ -1,3 +1,7 @@
+const std = @import("std");
+const allocator = @import("allocator.zig");
+const graphics = @import("graphics.zig");
+
 /// Graphics APIs
 pub const GraphicsAPI = enum {
     DirectX,
@@ -41,6 +45,9 @@ pub const GraphicsEngine = struct {
 
         /// Check if the window or display should close
         should_close: *const fn (ctx: *anyopaque) bool,
+
+        /// Creates an internal mesh object
+        create_mesh_internal: *const fn (ctx: *anyopaque) MeshInternal,
     };
 
     /// Initializes the graphics engine with the given options
@@ -72,9 +79,108 @@ pub const GraphicsEngine = struct {
     pub fn should_close(self: GraphicsEngine) bool {
         return self.tab.should_close(self.ptr);
     }
+
+    /// Creates an internal mesh object
+    pub fn create_mesh_internal(self: GraphicsEngine) MeshInternal {
+        return self.tab.create_mesh_internal(self.ptr);
+    }
 };
 
 /// Coerces a pointer `ptr` from *anyopaque to type `*T` for a given `T`.
 pub fn coerce_ptr(comptime T: type, ptr: *anyopaque) *T {
     return @as(*T, @ptrCast(@alignCast(ptr)));
+}
+
+pub const VertexLayout = struct {
+    pub const Type = enum {
+        Float,
+        UByte,
+        UShort,
+    };
+
+    pub const Entry = struct {
+        dimensions: usize,
+        backing_type: Type,
+        offset: usize,
+    };
+
+    size: usize,
+    vertex: ?Entry = null,
+    texture: ?Entry = null,
+    color: ?Entry = null,
+};
+
+pub const MeshInternal = struct {
+    ptr: *anyopaque,
+    tab: MeshInterface,
+    size: usize,
+    dead: bool = false,
+
+    pub const MeshInterface = struct {
+        update: *const fn (ctx: *anyopaque, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const VertexLayout) void,
+        draw: *const fn (ctx: *anyopaque) void,
+    };
+
+    pub fn update(self: MeshInternal, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const VertexLayout) void {
+        self.tab.update(self.ptr, vertices, vert_count, indices, ind_count, layout);
+    }
+
+    pub fn draw(self: MeshInternal) void {
+        self.tab.draw(self.ptr);
+    }
+};
+
+/// Mesh Object
+pub fn Mesh(comptime T: type, comptime V: VertexLayout) type {
+    return struct {
+        vertices: std.ArrayList(T),
+        indices: std.ArrayList(u16),
+        mesh_inst: ?MeshInternal = null,
+
+        const Self = @This();
+
+        /// Create the mesh
+        pub fn init() !Self {
+            const alloc = try allocator.allocator();
+            return Self{
+                .vertices = std.ArrayList(T).init(alloc),
+                .indices = std.ArrayList(u16).init(alloc),
+                .mesh_inst = null,
+            };
+        }
+
+        /// Destroy the mesh
+        pub fn deinit(self: *Self) void {
+            if (self.mesh_inst) |mi| {
+                mi.dead = true;
+            }
+
+            self.vertices.clearAndFree();
+            self.indices.clearAndFree();
+
+            self.vertices.deinit();
+            self.indices.deinit();
+        }
+
+        /// Update the mesh to the new state
+        pub fn update(self: *Self) void {
+            if (self.mesh_inst == null) {
+                const interface = graphics.get_interface();
+                self.mesh_inst = interface.create_mesh_internal();
+
+                std.log.info("{}", .{self.mesh_inst.?.size});
+            }
+
+            if (self.mesh_inst) |mi| {
+                mi.update(self.vertices.items.ptr, self.vertices.items.len, self.indices.items.ptr, self.indices.items.len, &V);
+            }
+        }
+
+        /// Draw the mesh
+        pub fn draw(self: *Self) void {
+            if (self.mesh_inst) |mi| {
+                mi.draw();
+            }
+        }
+    };
 }

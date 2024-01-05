@@ -45,12 +45,13 @@ pub fn init(options: t.EngineOptions) !void {
 }
 
 pub fn deinit() void {
+    engine.deinit();
+
     var alloc = Allocator.allocator() catch return;
     var slice: []u8 = undefined;
     slice.len = type_size;
     slice.ptr = @as([*]u8, @ptrCast(engine.ptr));
     alloc.free(slice);
-    engine.deinit();
 }
 
 pub fn get_interface() t.GraphicsEngine {

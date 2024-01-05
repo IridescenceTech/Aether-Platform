@@ -58,7 +58,7 @@ const Shader = struct {
             defer alloc.free(infoLog);
 
             glad.glGetShaderInfoLog(vertex, 512, null, infoLog.ptr);
-            std.log.err("Vertex shader compilation failed: {s}\n", .{infoLog});
+            std.log.err("Vertex shader compilation failed: {s}", .{infoLog});
             return error.ShaderCompileError;
         }
 
@@ -68,7 +68,7 @@ const Shader = struct {
             defer alloc.free(infoLog);
 
             glad.glGetShaderInfoLog(fragment, 512, null, infoLog.ptr);
-            std.log.err("Fragment shader compilation failed: {s}\n", .{infoLog});
+            std.log.err("Fragment shader compilation failed: {s}", .{infoLog});
             return error.ShaderCompileError;
         }
 
@@ -83,7 +83,7 @@ const Shader = struct {
             defer alloc.free(infoLog);
 
             glad.glGetProgramInfoLog(self.program, 512, null, infoLog.ptr);
-            std.log.err("Shader linking failed: {s}\n", .{infoLog});
+            std.log.err("Shader linking failed: {s}", .{infoLog});
             return error.ShaderLinkError;
         }
 
@@ -91,7 +91,7 @@ const Shader = struct {
         glad.glDeleteShader(fragment);
 
         self.use();
-        std.log.info("Shader initialized\n", .{});
+        std.log.info("Shader initialized", .{});
     }
 
     pub fn use(self: *Shader) void {
@@ -104,6 +104,7 @@ const Mesh = struct {
     vbo: u32 = 0,
     ebo: u32 = 0,
     index_count: usize = 0,
+    dead: bool = false,
 
     fn get_gltype(kind: t.VertexLayout.Type) u32 {
         return switch (kind) {
@@ -132,7 +133,6 @@ const Mesh = struct {
 
         glad.glBindBuffer(glad.GL_ARRAY_BUFFER, self.vbo);
         const vert_size = vert_count * layout.size;
-        std.log.info("Vertex size: {d}\n", .{vert_size});
         glad.glBufferData(glad.GL_ARRAY_BUFFER, @intCast(vert_size), vertices, glad.GL_STATIC_DRAW);
 
         if (layout.vertex) |entry| {
@@ -141,7 +141,6 @@ const Mesh = struct {
             const dims = entry.dimensions;
             const size = layout.size;
             const offset = entry.offset;
-            std.log.info("Vertex layout: {d} {d} {d}\n", .{ dims, size, offset });
             glad.glVertexAttribPointer(
                 0,
                 @intCast(dims),
@@ -158,7 +157,6 @@ const Mesh = struct {
             const dims = entry.dimensions;
             const size = layout.size;
             const offset = entry.offset;
-            std.log.info("Color layout: {d} {d} {d}\n", .{ dims, size, offset });
             glad.glVertexAttribPointer(
                 1,
                 @intCast(dims),
@@ -173,12 +171,9 @@ const Mesh = struct {
 
         const ind_size = ind_count * @sizeOf(u16);
         self.index_count = ind_count;
-        std.log.info("Index size: {d}\n", .{ind_size});
         glad.glBufferData(glad.GL_ELEMENT_ARRAY_BUFFER, @intCast(ind_size), indices, glad.GL_STATIC_DRAW);
 
         glad.glBindVertexArray(0);
-
-        std.log.info("VAO {d} VBO {d} EBO {d}\n", .{ self.vao, self.vbo, self.ebo });
     }
 
     fn draw(ctx: *anyopaque) void {
@@ -188,6 +183,19 @@ const Mesh = struct {
         glad.glDrawElements(glad.GL_TRIANGLES, @intCast(count), glad.GL_UNSIGNED_SHORT, null);
     }
 
+    fn deinit(ctx: *anyopaque) void {
+        var self = t.coerce_ptr(Mesh, ctx);
+        self.dead = true;
+    }
+
+    fn gc(self: *Mesh) void {
+        if (self.dead) {
+            glad.glDeleteVertexArrays(1, &self.vao);
+            glad.glDeleteBuffers(1, &self.vbo);
+            glad.glDeleteBuffers(1, &self.ebo);
+        }
+    }
+
     fn interface(self: *Mesh) t.MeshInternal {
         return .{
             .ptr = self,
@@ -195,12 +203,53 @@ const Mesh = struct {
             .tab = .{
                 .update = update,
                 .draw = draw,
+                .deinit = Mesh.deinit,
             },
         };
     }
 };
 
+const MeshManager = struct {
+    list: std.ArrayList(*Mesh) = undefined,
+
+    pub fn init(self: *MeshManager) !void {
+        self.list = std.ArrayList(*Mesh).init(try Allocator.allocator());
+    }
+
+    pub fn gc(self: *MeshManager) void {
+        const alloc = Allocator.allocator() catch unreachable;
+        var new_list = std.ArrayList(*Mesh).init(alloc);
+
+        for (self.list.items) |mesh| {
+            if (mesh.dead) {
+                mesh.gc();
+                alloc.destroy(mesh);
+            } else {
+                new_list.append(mesh) catch unreachable;
+            }
+        }
+
+        self.list.clearAndFree();
+        self.list = new_list;
+    }
+
+    pub fn deinit(self: *MeshManager) void {
+        for (self.list.items) |mesh| {
+            glad.glDeleteVertexArrays(1, &mesh.vao);
+            glad.glDeleteBuffers(1, &mesh.vbo);
+            glad.glDeleteBuffers(1, &mesh.ebo);
+
+            const alloc = Allocator.allocator() catch unreachable;
+            alloc.destroy(mesh);
+        }
+
+        self.list.clearAndFree();
+        self.list.deinit();
+    }
+};
+
 shader: Shader = undefined,
+meshes: MeshManager = undefined,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     var self = t.coerce_ptr(Self, ctx);
@@ -226,10 +275,13 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     std.debug.print("OpenGL Version: {s}\n", .{str});
 
     try self.shader.init();
+    try self.meshes.init();
 }
 
 pub fn deinit(ctx: *anyopaque) void {
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+    self.meshes.deinit();
+    glad.glDeleteProgram(self.shader.program);
 
     zwin.deinit();
 }
@@ -240,8 +292,10 @@ pub fn start_frame(ctx: *anyopaque) void {
 }
 
 pub fn end_frame(ctx: *anyopaque) void {
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
     zwin.render();
+
+    self.meshes.gc();
 }
 
 pub fn set_vsync(ctx: *anyopaque, vsync: bool) void {
@@ -255,10 +309,12 @@ pub fn should_close(ctx: *anyopaque) bool {
 }
 
 pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
     var alloc = Allocator.allocator() catch unreachable;
     var mesh = alloc.create(Mesh) catch unreachable;
     mesh.* = Mesh{};
+
+    self.meshes.list.append(mesh) catch unreachable;
 
     return mesh.interface();
 }

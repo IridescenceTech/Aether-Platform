@@ -35,6 +35,8 @@ pub fn main() !void {
     var g = platform.Graphics.get_interface();
 
     var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
+    //defer mesh.deinit();
+
     try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF });
     try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000 });
     try mesh.vertices.append(.{ .pos = [_]f32{ 0.0, 0.5, 0.5 }, .color = 0xFF00FF00 });
@@ -44,12 +46,22 @@ pub fn main() !void {
     try mesh.indices.append(2);
 
     mesh.update();
+    var mesh_alive: bool = true;
+    var curr_time = std.time.nanoTimestamp();
 
     while (!g.should_close()) {
         platform.poll_events();
         g.start_frame();
 
-        mesh.draw();
+        if (mesh_alive) {
+            mesh.draw();
+
+            if (std.time.nanoTimestamp() - curr_time > 2_000_000_000) {
+                curr_time = std.time.nanoTimestamp();
+                mesh_alive = !mesh_alive;
+                mesh.deinit();
+            }
+        }
 
         g.end_frame();
     }

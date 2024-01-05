@@ -114,11 +114,11 @@ pub const MeshInternal = struct {
     ptr: *anyopaque,
     tab: MeshInterface,
     size: usize,
-    dead: bool = false,
 
     pub const MeshInterface = struct {
         update: *const fn (ctx: *anyopaque, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const VertexLayout) void,
         draw: *const fn (ctx: *anyopaque) void,
+        deinit: *const fn (ctx: *anyopaque) void,
     };
 
     pub fn update(self: MeshInternal, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const VertexLayout) void {
@@ -127,6 +127,10 @@ pub const MeshInternal = struct {
 
     pub fn draw(self: MeshInternal) void {
         self.tab.draw(self.ptr);
+    }
+
+    pub fn deinit(self: MeshInternal) void {
+        self.tab.deinit(self.ptr);
     }
 };
 
@@ -151,8 +155,8 @@ pub fn Mesh(comptime T: type, comptime V: VertexLayout) type {
 
         /// Destroy the mesh
         pub fn deinit(self: *Self) void {
-            if (self.mesh_inst) |mi| {
-                mi.dead = true;
+            if (self.mesh_inst) |*mi| {
+                mi.deinit();
             }
 
             self.vertices.clearAndFree();
@@ -167,8 +171,6 @@ pub fn Mesh(comptime T: type, comptime V: VertexLayout) type {
             if (self.mesh_inst == null) {
                 const interface = graphics.get_interface();
                 self.mesh_inst = interface.create_mesh_internal();
-
-                std.log.info("{}", .{self.mesh_inst.?.size});
             }
 
             if (self.mesh_inst) |mi| {

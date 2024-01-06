@@ -7,3 +7,6 @@
 [submodule "ext/vulkan"]
 	path = ext/vulkan
 	url = git@github.com:Snektron/vulkan-zig.git
+[submodule "ext/stbi"]
+	path = ext/stbi
+	url = git@github.com:IridescenceTech/Aether-STBI.git

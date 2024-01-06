@@ -18,10 +18,16 @@ const Vertex = struct {
             .backing_type = .UByte,
             .offset = 12,
         },
+        .texture = .{
+            .dimensions = 2,
+            .backing_type = .Float,
+            .offset = 16,
+        },
     };
 
     pos: [3]f32,
     color: u32,
+    texture: [2]f32,
 };
 
 pub fn main() !void {
@@ -39,16 +45,23 @@ pub fn main() !void {
 
     var g = platform.Graphics.get_interface();
 
+    var tex = g.load_texture("container.jpg");
+    g.set_texture(tex);
+
     var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
     defer mesh.deinit();
 
-    try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF });
-    try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000 });
-    try mesh.vertices.append(.{ .pos = [_]f32{ 0.0, 0.5, 0.5 }, .color = 0xFF00FF00 });
+    try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } });
+    try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } });
+    try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } });
+    try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } });
 
     try mesh.indices.append(0);
     try mesh.indices.append(1);
     try mesh.indices.append(2);
+    try mesh.indices.append(2);
+    try mesh.indices.append(3);
+    try mesh.indices.append(0);
 
     mesh.update();
 

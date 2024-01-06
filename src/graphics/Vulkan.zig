@@ -58,6 +58,42 @@ pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
     return tmesh;
 }
 
+/// Loads a texture from the given path
+pub fn load_texture(ctx: *anyopaque, path: []const u8) t.Texture {
+    _ = path;
+    _ = ctx;
+
+    return .{
+        .index = 0,
+        .width = 0,
+        .height = 0,
+    };
+}
+
+/// Loads a texture from a buffer
+pub fn load_texture_from_buffer(ctx: *anyopaque, buffer: []const u8) t.Texture {
+    _ = buffer;
+    _ = ctx;
+
+    return .{
+        .index = 0,
+        .width = 0,
+        .height = 0,
+    };
+}
+
+/// Set the texture to be used for rendering
+pub fn set_texture(ctx: *anyopaque, texture: t.Texture) void {
+    _ = texture;
+    _ = ctx;
+}
+
+/// Destroys a texture
+pub fn destroy_texture(ctx: *anyopaque, texture: t.Texture) void {
+    _ = texture;
+    _ = ctx;
+}
+
 pub fn interface(self: *Self) t.GraphicsEngine {
     return .{
         .ptr = self,
@@ -69,6 +105,10 @@ pub fn interface(self: *Self) t.GraphicsEngine {
             .set_vsync = set_vsync,
             .should_close = should_close,
             .create_mesh_internal = create_mesh_internal,
+            .load_texture = load_texture,
+            .load_texture_from_buffer = load_texture_from_buffer,
+            .set_texture = set_texture,
+            .destroy_texture = destroy_texture,
         },
     };
 }

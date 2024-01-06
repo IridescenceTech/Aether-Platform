@@ -20,6 +20,10 @@ pub fn build(b: *std.Build) void {
         .source_file = .{ .path = "ext/glad/c.zig" },
     });
 
+    const stbi = b.addModule("stbi", .{
+        .source_file = .{ .path = "ext/stbi/c.zig" },
+    });
+
     const gen = vkgen.VkGenerateStep.create(b, "ext/vk.xml");
 
     const platform = b.addModule("platform", .{
@@ -28,6 +32,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zwin", .module = zwin },
             .{ .name = "glad", .module = glad },
             .{ .name = "vulkan", .module = gen.getModule() },
+            .{ .name = "stbi", .module = stbi },
         },
     });
 
@@ -42,6 +47,7 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("glfw");
     exe.addIncludePath(.{ .path = "ext/glad/include" });
     exe.addIncludePath(.{ .path = "ext/glad/" });
+    exe.addIncludePath(.{ .path = "ext/stbi/" });
     exe.addCSourceFile(.{
         .file = .{ .path = "ext/glad/src/gl.c" },
         .flags = &[_][]const u8{"-Iext/glad/include"},
@@ -49,6 +55,10 @@ pub fn build(b: *std.Build) void {
     exe.addCSourceFile(.{
         .file = .{ .path = "ext/glad/loader.c" },
         .flags = &[_][]const u8{"-Iext/glad/"},
+    });
+    exe.addCSourceFile(.{
+        .file = .{ .path = "ext/stbi/stb_image.c" },
+        .flags = &[_][]const u8{"-Iext/stbi/"},
     });
     b.installArtifact(exe);
 

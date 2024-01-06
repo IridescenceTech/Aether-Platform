@@ -18,6 +18,18 @@ pub const EngineOptions = struct {
     graphics_api: GraphicsAPI,
 };
 
+/// Texture object index
+pub const Texture = packed struct {
+    /// Index of the texture
+    index: u32,
+
+    /// Width of the texture
+    width: u16,
+
+    /// Height of the texture
+    height: u16,
+};
+
 /// GraphicsEngine is an interface to an underlying Graphics API (Vulkan, OpenGL, etc.)
 /// This interface includes the window/screen surface
 pub const GraphicsEngine = struct {
@@ -48,6 +60,18 @@ pub const GraphicsEngine = struct {
 
         /// Creates an internal mesh object
         create_mesh_internal: *const fn (ctx: *anyopaque) MeshInternal,
+
+        /// Loads a texture from the given path
+        load_texture: *const fn (ctx: *anyopaque, path: []const u8) Texture,
+
+        /// Loads a texture from a buffer
+        load_texture_from_buffer: *const fn (ctx: *anyopaque, buffer: []const u8) Texture,
+
+        /// Set the texture to be used for rendering
+        set_texture: *const fn (ctx: *anyopaque, texture: Texture) void,
+
+        /// Destroys a texture
+        destroy_texture: *const fn (ctx: *anyopaque, texture: Texture) void,
     };
 
     /// Initializes the graphics engine with the given options
@@ -84,6 +108,26 @@ pub const GraphicsEngine = struct {
     pub fn create_mesh_internal(self: GraphicsEngine) MeshInternal {
         return self.tab.create_mesh_internal(self.ptr);
     }
+
+    /// Loads a texture from the given path
+    pub fn load_texture(self: GraphicsEngine, path: []const u8) Texture {
+        return self.tab.load_texture(self.ptr, path);
+    }
+
+    /// Loads a texture from a buffer
+    pub fn load_texture_from_buffer(self: GraphicsEngine, buffer: []const u8) Texture {
+        return self.tab.load_texture_from_buffer(self.ptr, buffer);
+    }
+
+    /// Set the texture to be used for rendering
+    pub fn set_texture(self: GraphicsEngine, texture: Texture) void {
+        self.tab.set_texture(self.ptr, texture);
+    }
+
+    /// Destroys a texture
+    pub fn destroy_texture(self: GraphicsEngine, texture: Texture) void {
+        self.tab.destroy_texture(self.ptr, texture);
+    }
 };
 
 /// Coerces a pointer `ptr` from *anyopaque to type `*T` for a given `T`.
@@ -91,44 +135,74 @@ pub fn coerce_ptr(comptime T: type, ptr: *anyopaque) *T {
     return @as(*T, @ptrCast(@alignCast(ptr)));
 }
 
+/// Descriptor for a vertex layout
 pub const VertexLayout = struct {
+    /// Type of the vertex
     pub const Type = enum {
         Float,
         UByte,
         UShort,
     };
 
+    /// Entry in the vertex layout
     pub const Entry = struct {
+        /// Number of dimensions for the entry
         dimensions: usize,
+
+        /// Type of the entry
         backing_type: Type,
+
+        /// Offset of the entry in the vertex
         offset: usize,
     };
 
+    /// Total size of the vertex (stride)
     size: usize,
+
+    /// Vertex attribute entry
     vertex: ?Entry = null,
+
+    /// Texture coordinate entry
     texture: ?Entry = null,
+
+    /// Color entry
     color: ?Entry = null,
 };
 
+/// Mesh Internal Interface
 pub const MeshInternal = struct {
+    /// Pointer to the internal mesh object
     ptr: *anyopaque,
+
+    /// Mesh VTable Interface
     tab: MeshInterface,
+
+    /// Size of the Mesh
     size: usize,
 
+    /// Mesh Interface VTable
     pub const MeshInterface = struct {
+        /// Creates or updates the mesh with the given vertices and indices
         update: *const fn (ctx: *anyopaque, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const VertexLayout) void,
+
+        /// Draw the mesh
         draw: *const fn (ctx: *anyopaque) void,
+
+        /// Deinitialize the mesh
         deinit: *const fn (ctx: *anyopaque) void,
     };
 
+    /// Creates or updates the mesh with the given vertices and indices
     pub fn update(self: MeshInternal, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const VertexLayout) void {
         self.tab.update(self.ptr, vertices, vert_count, indices, ind_count, layout);
     }
 
+    /// Draw the mesh
     pub fn draw(self: MeshInternal) void {
         self.tab.draw(self.ptr);
     }
 
+    /// Deinitialize the mesh
     pub fn deinit(self: MeshInternal) void {
         self.tab.deinit(self.ptr);
     }

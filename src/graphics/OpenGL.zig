@@ -4,16 +4,20 @@ const Allocator = @import("../allocator.zig");
 const t = @import("../types.zig");
 const zwin = @import("zwin");
 const Self = @This();
+const stbi = @import("stbi");
 
 const vShader =
     \\#version 460 core
     \\layout (location = 0) in vec3 aPos;
     \\layout (location = 1) in vec4 aCol;
+    \\layout (location = 2) in vec2 aTex;
     \\out vec4 vertexColor;
+    \\out vec2 uv;
     \\void main()
     \\{
     \\    gl_Position = vec4(aPos, 1.0);
     \\    vertexColor = aCol;
+    \\    uv = aTex;
     \\}
 ;
 
@@ -21,9 +25,14 @@ const fShader =
     \\#version 460 core
     \\out vec4 FragColor;
     \\in vec4 vertexColor;
+    \\in vec2 uv;
+    \\
+    \\uniform sampler2D tex;
+    \\
     \\void main()
     \\{
     \\    FragColor = vertexColor;
+    \\    FragColor *= texture(tex, uv);
     \\}
 ;
 
@@ -167,6 +176,22 @@ const Mesh = struct {
             );
         }
 
+        if (layout.texture) |entry| {
+            glad.glEnableVertexAttribArray(2);
+
+            const dims = entry.dimensions;
+            const size = layout.size;
+            const offset = entry.offset;
+            glad.glVertexAttribPointer(
+                2,
+                @intCast(dims),
+                get_gltype(entry.backing_type),
+                glad.GL_FALSE,
+                @intCast(size),
+                @ptrFromInt(offset),
+            );
+        }
+
         glad.glBindBuffer(glad.GL_ELEMENT_ARRAY_BUFFER, self.ebo);
 
         const ind_size = ind_count * @sizeOf(u16);
@@ -248,8 +273,161 @@ const MeshManager = struct {
     }
 };
 
+const Texture = struct {
+    id: u32 = 0,
+    width: u16 = 0,
+    height: u16 = 0,
+
+    path_hash: u32 = 0,
+    hash: u32 = 0,
+    ref_count: u32 = 0,
+};
+
+const TextureManager = struct {
+    list: std.ArrayList(Texture) = undefined,
+    bound: u32 = 0,
+
+    pub fn init(self: *TextureManager) !void {
+        self.list = std.ArrayList(Texture).init(try Allocator.allocator());
+    }
+
+    pub fn deinit(self: *TextureManager) void {
+        for (self.list.items) |tex| {
+            glad.glDeleteTextures(1, &tex.id);
+        }
+
+        self.list.clearAndFree();
+        self.list.deinit();
+    }
+
+    fn hash_bytes(path: []const u8) u32 {
+        var hash: u32 = 5381;
+        for (path) |c| {
+            @setRuntimeSafety(false);
+            hash = ((hash << 5) + hash) + c;
+        }
+
+        return hash;
+    }
+
+    pub fn load_texture(self: *TextureManager, path: []const u8) !Texture {
+        // Check if the texture is already loaded
+        for (self.list.items) |*tex| {
+            if (tex.path_hash == 0) {
+                continue;
+            }
+
+            if (tex.path_hash == hash_bytes(path)) {
+                tex.ref_count += 1;
+                return tex.*;
+            }
+        }
+
+        // Otherwise load the file into a buffer.
+        const alloc = try Allocator.allocator();
+
+        var file = try std.fs.cwd().openFile(path, .{});
+        defer file.close();
+
+        var buffer = try alloc.alloc(u8, try file.getEndPos());
+        defer alloc.free(buffer);
+
+        _ = try file.read(buffer);
+
+        // Load the texture via the buffer method
+        return self.load_texture_from_buffer(buffer, hash_bytes(path));
+    }
+
+    pub fn load_texture_from_buffer(self: *TextureManager, buffer: []const u8, phash: ?u32) !Texture {
+        var tex: Texture = undefined;
+        if (phash) |hash| {
+            tex.path_hash = hash;
+        }
+        tex.hash = hash_bytes(buffer);
+
+        for (self.list.items) |*t_other| {
+            if (t_other.hash == tex.hash) {
+                t_other.ref_count += 1;
+                return t_other.*;
+            }
+        }
+
+        tex.ref_count = 1;
+
+        var width: i32 = 0;
+        var height: i32 = 0;
+        var channels: i32 = 0;
+        const len = buffer.len;
+        var data = stbi.stbi_load_from_memory(buffer.ptr, @intCast(len), &width, &height, &channels, stbi.STBI_rgb_alpha);
+        defer stbi.stbi_image_free(data);
+
+        if (data == null) {
+            return error.TextureLoadError;
+        }
+
+        tex.width = @intCast(width);
+        tex.height = @intCast(height);
+
+        var id: u32 = 0;
+        // Load the texture into OpenGL
+
+        glad.glGenTextures(1, &id);
+        glad.glBindTexture(glad.GL_TEXTURE_2D, id);
+
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_WRAP_S, glad.GL_REPEAT);
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_WRAP_T, glad.GL_REPEAT);
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_MIN_FILTER, glad.GL_NEAREST);
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_MAG_FILTER, glad.GL_NEAREST);
+
+        glad.glTexImage2D(
+            glad.GL_TEXTURE_2D,
+            0,
+            glad.GL_RGBA,
+            @intCast(width),
+            @intCast(height),
+            0,
+            glad.GL_RGBA,
+            glad.GL_UNSIGNED_BYTE,
+            data,
+        );
+
+        glad.glGenerateMipmap(glad.GL_TEXTURE_2D);
+
+        try self.list.append(tex);
+        return tex;
+    }
+
+    pub fn bind(self: *TextureManager, texture: t.Texture) void {
+        if (self.bound == texture.index) {
+            return;
+        }
+
+        glad.glBindTexture(glad.GL_TEXTURE_2D, texture.index);
+        self.bound = texture.index;
+    }
+
+    pub fn delete(self: *TextureManager, texture: t.Texture) void {
+        var remove_index: usize = 65535;
+        for (self.list.items, 0..) |*tex, i| {
+            _ = i;
+            if (tex.id == texture.index) {
+                tex.ref_count -= 1;
+                if (tex.ref_count == 0) {
+                    glad.glDeleteTextures(1, &tex.id);
+                    tex.id = 0;
+                }
+            }
+        }
+
+        if (remove_index != 65535) {
+            _ = self.list.swapRemove(remove_index);
+        }
+    }
+};
+
 shader: Shader = undefined,
 meshes: MeshManager = undefined,
+textures: TextureManager = undefined,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     var self = t.coerce_ptr(Self, ctx);
@@ -266,22 +444,24 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     }
 
     glad.glViewport(0, 0, width, height);
-    // glad.glEnable(glad.GL_DEPTH_TEST);
-    // glad.glEnable(glad.GL_CULL_FACE);
-    // glad.glCullFace(glad.GL_BACK);
-    // glad.glFrontFace(glad.GL_CCW);
-    // glad.glClearColor(1.0, 1.0, 1.0, 1.0);
+    glad.glEnable(glad.GL_DEPTH_TEST);
+    glad.glEnable(glad.GL_CULL_FACE);
+    glad.glCullFace(glad.GL_BACK);
+    glad.glFrontFace(glad.GL_CCW);
+    glad.glClearColor(1.0, 1.0, 1.0, 1.0);
 
     var str = glad.glGetString(glad.GL_VERSION);
     std.debug.print("OpenGL Version: {s}\n", .{str});
 
     try self.shader.init();
     try self.meshes.init();
+    try self.textures.init();
 }
 
 pub fn deinit(ctx: *anyopaque) void {
     var self = t.coerce_ptr(Self, ctx);
     self.meshes.deinit();
+    self.textures.deinit();
     glad.glDeleteProgram(self.shader.program);
 
     zwin.deinit();
@@ -320,6 +500,44 @@ pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
     return mesh.interface();
 }
 
+/// Loads a texture from the given path
+pub fn load_texture(ctx: *anyopaque, path: []const u8) t.Texture {
+    var self = t.coerce_ptr(Self, ctx);
+
+    var texture = self.textures.load_texture(path) catch unreachable;
+
+    return .{
+        .index = texture.id,
+        .width = texture.width,
+        .height = texture.height,
+    };
+}
+
+/// Loads a texture from a buffer
+pub fn load_texture_from_buffer(ctx: *anyopaque, buffer: []const u8) t.Texture {
+    var self = t.coerce_ptr(Self, ctx);
+
+    var texture = self.textures.load_texture_from_buffer(buffer, null) catch unreachable;
+
+    return .{
+        .index = texture.id,
+        .width = texture.width,
+        .height = texture.height,
+    };
+}
+
+/// Set the texture to be used for rendering
+pub fn set_texture(ctx: *anyopaque, texture: t.Texture) void {
+    var self = t.coerce_ptr(Self, ctx);
+    self.textures.bind(texture);
+}
+
+/// Destroys a texture
+pub fn destroy_texture(ctx: *anyopaque, texture: t.Texture) void {
+    var self = t.coerce_ptr(Self, ctx);
+    self.textures.delete(texture);
+}
+
 pub fn interface(self: *Self) t.GraphicsEngine {
     return .{
         .ptr = self,
@@ -331,6 +549,10 @@ pub fn interface(self: *Self) t.GraphicsEngine {
             .set_vsync = set_vsync,
             .should_close = should_close,
             .create_mesh_internal = create_mesh_internal,
+            .load_texture = load_texture,
+            .load_texture_from_buffer = load_texture_from_buffer,
+            .set_texture = set_texture,
+            .destroy_texture = destroy_texture,
         },
     };
 }

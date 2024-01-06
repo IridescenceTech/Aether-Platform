@@ -37,7 +37,7 @@ pub fn main() !void {
         .width = 960,
         .height = 544,
         .title = "Hello, World!",
-        .graphics_api = .OpenGL,
+        .graphics_api = .GLES,
     });
     std.log.info("Hello, World!", .{});
 

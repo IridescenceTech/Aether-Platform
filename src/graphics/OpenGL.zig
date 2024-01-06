@@ -4,6 +4,7 @@ const Allocator = @import("../allocator.zig");
 const t = @import("../types.zig");
 const zwin = @import("zwin");
 const Self = @This();
+const builtin = @import("builtin");
 
 // Graphics Engine
 
@@ -17,6 +18,26 @@ shader: Shader = undefined,
 meshes: MeshManager = undefined,
 textures: TextureManager = undefined,
 gles: bool = false,
+
+//typedef void (APIENTRY *DEBUGPROC)(GLenum source,
+// GLenum type,
+// GLuint id,
+// GLenum severity,
+// GLsizei length,
+// const GLchar *message,
+// const void *userParam);
+fn debugger(source: c_uint, kind: c_uint, id: c_uint, severity: c_uint, length: c_int, message: [*c]const u8, userParam: ?*const anyopaque) callconv(.C) void {
+    _ = length;
+    _ = id;
+    _ = kind;
+    _ = source;
+    _ = userParam;
+    if (severity == glad.GL_DEBUG_SEVERITY_NOTIFICATION) {
+        return;
+    }
+
+    std.debug.print("{s}\n", .{message});
+}
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     var self = t.coerce_ptr(Self, ctx);
@@ -44,6 +65,11 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     glad.glFrontFace(glad.GL_CCW);
     glad.glEnable(glad.GL_FRAMEBUFFER_SRGB);
     glad.glClearColor(1.0, 1.0, 1.0, 1.0);
+
+    if (builtin.mode == .Debug and self.gles == false) {
+        glad.glEnable(glad.GL_DEBUG_OUTPUT);
+        glad.glDebugMessageCallback(&debugger, null);
+    }
 
     var str = glad.glGetString(glad.GL_VERSION);
     std.debug.print("OpenGL Version: {s}\n", .{str});

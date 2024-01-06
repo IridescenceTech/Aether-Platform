@@ -137,7 +137,6 @@ pub const TextureManager = struct {
         }
 
         glad.glActiveTexture(glad.GL_TEXTURE0);
-        std.log.info("Binding texture: {}\n", .{texture.index});
         glad.glBindTexture(glad.GL_TEXTURE_2D, texture.index);
         self.bound = texture.index;
     }

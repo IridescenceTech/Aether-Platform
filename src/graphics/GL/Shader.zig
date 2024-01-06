@@ -65,7 +65,7 @@ const fShaderES =
 
 program: u32 = 0,
 
-pub fn init(self: *Shader, comptime gles: bool) !void {
+pub fn init(self: *Shader, gles: bool) !void {
     var vertex = glad.glCreateShader(glad.GL_VERTEX_SHADER);
     defer glad.glDeleteShader(vertex);
 

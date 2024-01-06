@@ -16,10 +16,16 @@ const Mesh = @import("GL/Mesh.zig").Mesh;
 shader: Shader = undefined,
 meshes: MeshManager = undefined,
 textures: TextureManager = undefined,
+gles: bool = false,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     var self = t.coerce_ptr(Self, ctx);
-    try zwin.init(.OpenGL, 4, 6);
+
+    if (self.gles) {
+        try zwin.init(.GLES, 3, 2);
+    } else {
+        try zwin.init(.OpenGL, 4, 6);
+    }
 
     const alloc = try Allocator.allocator();
     var copy = try alloc.dupeZ(u8, title);
@@ -42,7 +48,7 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     var str = glad.glGetString(glad.GL_VERSION);
     std.debug.print("OpenGL Version: {s}\n", .{str});
 
-    try self.shader.init(false);
+    try self.shader.init(self.gles);
     try self.meshes.init();
     try self.textures.init();
 

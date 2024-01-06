@@ -3,7 +3,6 @@ const t = @import("types.zig");
 const std = @import("std");
 const OGL = @import("graphics/OpenGL.zig");
 const VK = @import("graphics/Vulkan.zig");
-const GLES = @import("graphics/GLES.zig");
 
 var engine: t.GraphicsEngine = undefined;
 var type_size: usize = 0;
@@ -27,9 +26,10 @@ pub fn init(options: t.EngineOptions) !void {
             type_size = @sizeOf(OGL);
         },
         .GLES => {
-            var g = try allocate_engine(GLES);
+            var g = try allocate_engine(OGL);
+            g.gles = true;
             engine = g.interface();
-            type_size = @sizeOf(GLES);
+            type_size = @sizeOf(OGL);
         },
         .Vulkan => {
             var g = try allocate_engine(VK);

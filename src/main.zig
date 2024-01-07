@@ -37,7 +37,7 @@ pub fn main() !void {
         .width = 960,
         .height = 544,
         .title = "Hello, World!",
-        .graphics_api = .GLES,
+        .graphics_api = .OpenGL,
     });
     std.log.info("Hello, World!", .{});
 
@@ -45,23 +45,20 @@ pub fn main() !void {
 
     var g = platform.Graphics.get_interface();
 
-    var tex = g.load_texture("container.jpg");
+    var tex = g.load_texture("2.jpg");
     g.set_texture(tex);
 
     var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
     defer mesh.deinit();
 
-    try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } });
-    try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } });
-    try mesh.vertices.append(.{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } });
-    try mesh.vertices.append(.{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } });
+    try mesh.vertices.appendSlice(&[_]Vertex{
+        .{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } },
+        .{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } },
+        .{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } },
+        .{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } },
+    });
 
-    try mesh.indices.append(0);
-    try mesh.indices.append(1);
-    try mesh.indices.append(2);
-    try mesh.indices.append(2);
-    try mesh.indices.append(3);
-    try mesh.indices.append(0);
+    try mesh.indices.appendSlice(&[_]u16{ 0, 1, 2, 2, 3, 0 });
 
     mesh.update();
 

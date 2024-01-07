@@ -139,7 +139,10 @@ pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
 pub fn load_texture(ctx: *anyopaque, path: []const u8) t.Texture {
     var self = t.coerce_ptr(Self, ctx);
 
-    var texture = self.textures.load_texture(path) catch unreachable;
+    var texture = self.textures.load_texture(path) catch self.textures.undefined_texture;
+    if (texture.id == self.textures.undefined_texture.id) {
+        std.log.warn("Texture not found: {s}", .{path});
+    }
 
     check_error();
     return .{

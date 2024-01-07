@@ -18,10 +18,58 @@ pub const Texture = struct {
 
 pub const TextureManager = struct {
     list: std.ArrayList(Texture) = undefined,
+    undefined_texture: Texture = undefined,
     bound: u32 = 1337,
 
     pub fn init(self: *TextureManager) !void {
         self.list = std.ArrayList(Texture).init(try Allocator.allocator());
+
+        self.undefined_texture = Texture{
+            .id = 0,
+            .width = 8,
+            .height = 8,
+            .path_hash = 0,
+            .hash = 0,
+            .ref_count = 0,
+        };
+
+        glad.glGenTextures(1, &self.undefined_texture.id);
+        glad.glBindTexture(glad.GL_TEXTURE_2D, self.undefined_texture.id);
+
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_WRAP_S, glad.GL_CLAMP_TO_EDGE);
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_WRAP_T, glad.GL_CLAMP_TO_EDGE);
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_MIN_FILTER, glad.GL_NEAREST);
+        glad.glTexParameteri(glad.GL_TEXTURE_2D, glad.GL_TEXTURE_MAG_FILTER, glad.GL_NEAREST);
+
+        glad.glPixelStorei(glad.GL_UNPACK_ALIGNMENT, 1);
+
+        const PURPLE = 0xFFFF00FF;
+        const BLACK = 0xFF000000;
+
+        const data: [8 * 8]u32 = [_]u32{
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+        };
+
+        glad.glTexImage2D(
+            glad.GL_TEXTURE_2D,
+            0,
+            glad.GL_SRGB_ALPHA,
+            @intCast(self.undefined_texture.width),
+            @intCast(self.undefined_texture.height),
+            0,
+            glad.GL_RGBA,
+            glad.GL_UNSIGNED_BYTE,
+            &data,
+        );
+
+        glad.glGenerateMipmap(glad.GL_TEXTURE_2D);
     }
 
     pub fn deinit(self: *TextureManager) void {
@@ -116,7 +164,7 @@ pub const TextureManager = struct {
         glad.glTexImage2D(
             glad.GL_TEXTURE_2D,
             0,
-            glad.GL_RGBA,
+            glad.GL_SRGB_ALPHA,
             @intCast(width),
             @intCast(height),
             0,

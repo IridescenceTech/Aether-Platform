@@ -24,6 +24,11 @@ pub fn build(b: *std.Build) void {
         .source_file = .{ .path = "ext/stbi/c.zig" },
     });
 
+    const zig_tracy = b.anonymousDependency("./libs/zig-tracy", @import("ext/tracy/build.zig"), .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const gen = vkgen.VkGenerateStep.create(b, "ext/vk.xml");
 
     const platform = b.addModule("platform", .{
@@ -33,6 +38,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "glad", .module = glad },
             .{ .name = "vulkan", .module = gen.getModule() },
             .{ .name = "stbi", .module = stbi },
+            .{ .name = "tracy", .module = zig_tracy.module("tracy") },
         },
     });
 
@@ -60,6 +66,7 @@ pub fn build(b: *std.Build) void {
         .file = .{ .path = "ext/stbi/stb_image.c" },
         .flags = &[_][]const u8{"-Iext/stbi/"},
     });
+    exe.linkLibrary(zig_tracy.artifact("tracy"));
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

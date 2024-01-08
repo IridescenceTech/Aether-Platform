@@ -10,3 +10,6 @@
 [submodule "ext/stbi"]
 	path = ext/stbi
 	url = git@github.com:IridescenceTech/Aether-STBI.git
+[submodule "ext/tracy"]
+	path = ext/tracy
+	url = git@github.com:cipharius/zig-tracy.git

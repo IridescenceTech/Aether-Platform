@@ -2,13 +2,26 @@ const std = @import("std");
 const glad = @import("glad");
 
 const Allocator = @import("../../allocator.zig");
+const Shader = @import("Shader.zig");
 const t = @import("../../types.zig");
 
+pub const POSITION_ATTRIBUTE = 0;
+pub const COLOR_ATTRIBUTE = 1;
+pub const TEXTURE_ATTRIBUTE = 2;
+
 pub const Mesh = struct {
+    pub const Flags = packed struct {
+        texture_enabled: u1,
+        color_enabled: u1,
+        fixed_point5: u1,
+        reserved: u29,
+    };
+
     vao: u32 = 0,
     vbo: u32 = 0,
     ebo: u32 = 0,
     index_count: usize = 0,
+    flags: Flags = undefined,
     dead: bool = false,
 
     fn get_gltype(kind: t.VertexLayout.Type) u32 {
@@ -41,51 +54,68 @@ pub const Mesh = struct {
         glad.glBufferData(glad.GL_ARRAY_BUFFER, @intCast(vert_size), vertices, glad.GL_STATIC_DRAW);
 
         if (layout.vertex) |entry| {
-            glad.glEnableVertexAttribArray(0);
+            glad.glEnableVertexAttribArray(POSITION_ATTRIBUTE);
 
             const dims = entry.dimensions;
             const size = layout.size;
             const offset = entry.offset;
+            const normalize = if (entry.normalize) glad.GL_TRUE else glad.GL_FALSE;
             glad.glVertexAttribPointer(
                 0,
                 @intCast(dims),
                 get_gltype(entry.backing_type),
-                glad.GL_FALSE,
+                @intCast(normalize),
                 @intCast(size),
                 @ptrFromInt(offset),
             );
+
+            if (entry.backing_type == t.VertexLayout.Type.UShort) {
+                self.flags.fixed_point5 = 1;
+            }
+        } else {
+            self.flags.fixed_point5 = 0;
         }
 
         if (layout.color) |entry| {
-            glad.glEnableVertexAttribArray(1);
+            glad.glEnableVertexAttribArray(COLOR_ATTRIBUTE);
 
             const dims = entry.dimensions;
             const size = layout.size;
             const offset = entry.offset;
+            const normalize = if (entry.normalize) glad.GL_TRUE else glad.GL_FALSE;
             glad.glVertexAttribPointer(
                 1,
                 @intCast(dims),
                 get_gltype(entry.backing_type),
-                glad.GL_TRUE,
+                @intCast(normalize),
                 @intCast(size),
                 @ptrFromInt(offset),
             );
+
+            self.flags.color_enabled = 1;
+        } else {
+            self.flags.color_enabled = 0;
         }
 
         if (layout.texture) |entry| {
-            glad.glEnableVertexAttribArray(2);
+            glad.glEnableVertexAttribArray(TEXTURE_ATTRIBUTE);
 
             const dims = entry.dimensions;
             const size = layout.size;
             const offset = entry.offset;
+            const normalize = if (entry.normalize) glad.GL_TRUE else glad.GL_FALSE;
             glad.glVertexAttribPointer(
                 2,
                 @intCast(dims),
                 get_gltype(entry.backing_type),
-                glad.GL_FALSE,
+                @intCast(normalize),
                 @intCast(size),
                 @ptrFromInt(offset),
             );
+
+            self.flags.texture_enabled = 1;
+        } else {
+            self.flags.texture_enabled = 0;
         }
 
         glad.glBindBuffer(glad.GL_ELEMENT_ARRAY_BUFFER, self.ebo);
@@ -100,6 +130,9 @@ pub const Mesh = struct {
     pub fn draw(ctx: *anyopaque) void {
         const self = t.coerce_ptr(Mesh, ctx);
         glad.glBindVertexArray(self.vao);
+
+        Shader.set_flags(@ptrCast(&self.flags));
+
         const count = self.index_count;
         glad.glDrawElements(glad.GL_TRIANGLES, @intCast(count), glad.GL_UNSIGNED_SHORT, null);
     }

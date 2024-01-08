@@ -12,16 +12,19 @@ const Vertex = struct {
             .dimensions = 3,
             .backing_type = .Float,
             .offset = 0,
+            .normalize = false,
         },
         .color = .{
             .dimensions = 4,
             .backing_type = .UByte,
             .offset = 12,
+            .normalize = true,
         },
         .texture = .{
             .dimensions = 2,
             .backing_type = .Float,
             .offset = 16,
+            .normalize = false,
         },
     };
 
@@ -45,7 +48,7 @@ pub fn main() !void {
 
     var g = platform.Graphics.get_interface();
 
-    var tex = g.load_texture("2.jpg");
+    var tex = g.load_texture("container.jpg");
     g.set_texture(tex);
 
     var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();

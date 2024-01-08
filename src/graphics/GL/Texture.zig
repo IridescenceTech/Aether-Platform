@@ -60,7 +60,7 @@ pub const TextureManager = struct {
         glad.glTexImage2D(
             glad.GL_TEXTURE_2D,
             0,
-            glad.GL_SRGB_ALPHA,
+            glad.GL_RGBA,
             @intCast(self.undefined_texture.width),
             @intCast(self.undefined_texture.height),
             0,
@@ -70,6 +70,7 @@ pub const TextureManager = struct {
         );
 
         glad.glGenerateMipmap(glad.GL_TEXTURE_2D);
+        glad.glBindTexture(glad.GL_TEXTURE_2D, 0);
     }
 
     pub fn deinit(self: *TextureManager) void {
@@ -164,7 +165,7 @@ pub const TextureManager = struct {
         glad.glTexImage2D(
             glad.GL_TEXTURE_2D,
             0,
-            glad.GL_SRGB_ALPHA,
+            glad.GL_RGBA,
             @intCast(width),
             @intCast(height),
             0,

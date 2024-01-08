@@ -154,6 +154,9 @@ pub const VertexLayout = struct {
 
         /// Offset of the entry in the vertex
         offset: usize,
+
+        /// Normalize
+        normalize: bool,
     };
 
     /// Total size of the vertex (stride)

@@ -14,7 +14,6 @@ const TextureManager = @import("GL/Texture.zig").TextureManager;
 const MeshManager = @import("GL/Mesh.zig").MeshManager;
 const Mesh = @import("GL/Mesh.zig").Mesh;
 
-shader: Shader = undefined,
 meshes: MeshManager = undefined,
 textures: TextureManager = undefined,
 gles: bool = false,
@@ -74,17 +73,21 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     var str = glad.glGetString(glad.GL_VERSION);
     std.debug.print("OpenGL Version: {s}\n", .{str});
 
-    try self.shader.init(self.gles);
+    try Shader.init(self.gles);
+    std.log.info("Shader created", .{});
+    check_error();
     try self.meshes.init();
+    std.log.info("Meshes created", .{});
+    check_error();
     try self.textures.init();
-
+    std.log.info("Textures created", .{});
     check_error();
 }
 
 fn check_error() void {
     var err = glad.glGetError();
     if (err != glad.GL_NO_ERROR) {
-        std.log.err("OpenGL Error: {d}\n", .{err});
+        std.log.err("OpenGL Error: {d}", .{err});
     }
 }
 
@@ -92,7 +95,7 @@ pub fn deinit(ctx: *anyopaque) void {
     var self = t.coerce_ptr(Self, ctx);
     self.meshes.deinit();
     self.textures.deinit();
-    glad.glDeleteProgram(self.shader.program);
+    glad.glDeleteProgram(Shader.program);
 
     zwin.deinit();
 }

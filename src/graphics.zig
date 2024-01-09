@@ -10,9 +10,9 @@ var type_size: usize = 0;
 fn allocate_engine(comptime T: type) !*T {
     const size = @sizeOf(T);
     const alloc = try Allocator.allocator();
-    var ptr = try alloc.alloc(u8, size);
+    const ptr = try alloc.alloc(u8, size);
 
-    var data = @as(*T, @ptrCast(@alignCast(ptr.ptr)));
+    const data = @as(*T, @ptrCast(@alignCast(ptr.ptr)));
     data.* = T{};
 
     return data;

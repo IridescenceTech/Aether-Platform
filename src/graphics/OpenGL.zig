@@ -48,7 +48,7 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     }
 
     const alloc = try Allocator.allocator();
-    var copy = try alloc.dupeZ(u8, title);
+    const copy = try alloc.dupeZ(u8, title);
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
@@ -70,7 +70,7 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
         glad.glDebugMessageCallback(&debugger, null);
     }
 
-    var str = glad.glGetString(glad.GL_VERSION);
+    const str = glad.glGetString(glad.GL_VERSION);
     std.debug.print("OpenGL Version: {s}\n", .{str});
 
     try Shader.init(self.gles);
@@ -85,14 +85,14 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
 }
 
 fn check_error() void {
-    var err = glad.glGetError();
+    const err = glad.glGetError();
     if (err != glad.GL_NO_ERROR) {
         std.log.err("OpenGL Error: {d}", .{err});
     }
 }
 
 pub fn deinit(ctx: *anyopaque) void {
-    var self = t.coerce_ptr(Self, ctx);
+    const self = t.coerce_ptr(Self, ctx);
     self.meshes.deinit();
     self.textures.deinit();
     glad.glDeleteProgram(Shader.program);
@@ -142,7 +142,7 @@ pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
 pub fn load_texture(ctx: *anyopaque, path: []const u8) t.Texture {
     var self = t.coerce_ptr(Self, ctx);
 
-    var texture = self.textures.load_texture(path) catch self.textures.undefined_texture;
+    const texture = self.textures.load_texture(path) catch self.textures.undefined_texture;
     if (texture.id == self.textures.undefined_texture.id) {
         std.log.warn("Texture not found: {s}", .{path});
     }
@@ -159,7 +159,7 @@ pub fn load_texture(ctx: *anyopaque, path: []const u8) t.Texture {
 pub fn load_texture_from_buffer(ctx: *anyopaque, buffer: []const u8) t.Texture {
     var self = t.coerce_ptr(Self, ctx);
 
-    var texture = self.textures.load_texture_from_buffer(buffer, null) catch unreachable;
+    const texture = self.textures.load_texture_from_buffer(buffer, null) catch unreachable;
 
     check_error();
     return .{

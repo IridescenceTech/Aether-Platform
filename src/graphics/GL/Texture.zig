@@ -111,7 +111,7 @@ pub const TextureManager = struct {
         var file = try std.fs.cwd().openFile(path, .{});
         defer file.close();
 
-        var buffer = try alloc.alloc(u8, try file.getEndPos());
+        const buffer = try alloc.alloc(u8, try file.getEndPos());
         defer alloc.free(buffer);
 
         _ = try file.read(buffer);
@@ -140,7 +140,7 @@ pub const TextureManager = struct {
         var height: i32 = 0;
         var channels: i32 = 0;
         const len = buffer.len;
-        var data = stbi.stbi_load_from_memory(buffer.ptr, @intCast(len), &width, &height, &channels, stbi.STBI_rgb_alpha);
+        const data = stbi.stbi_load_from_memory(buffer.ptr, @intCast(len), &width, &height, &channels, stbi.STBI_rgb_alpha);
         defer stbi.stbi_image_free(data);
 
         if (data == null) {
@@ -193,12 +193,12 @@ pub const TextureManager = struct {
     pub fn delete(self: *TextureManager, texture: t.Texture) void {
         var remove_index: usize = 65535;
         for (self.list.items, 0..) |*tex, i| {
-            _ = i;
             if (tex.id == texture.index) {
                 tex.ref_count -= 1;
                 if (tex.ref_count == 0) {
                     glad.glDeleteTextures(1, &tex.id);
                     tex.id = 0;
+                    remove_index = i;
                 }
             }
         }

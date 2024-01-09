@@ -152,10 +152,10 @@ const identity = [_]f32{
 };
 
 pub fn init(gles: bool) !void {
-    var vertex = glad.glCreateShader(glad.GL_VERTEX_SHADER);
+    const vertex = glad.glCreateShader(glad.GL_VERTEX_SHADER);
     defer glad.glDeleteShader(vertex);
 
-    var fragment = glad.glCreateShader(glad.GL_FRAGMENT_SHADER);
+    const fragment = glad.glCreateShader(glad.GL_FRAGMENT_SHADER);
     defer glad.glDeleteShader(fragment);
 
     var alloc = try Allocator.allocator();
@@ -175,7 +175,7 @@ pub fn init(gles: bool) !void {
     var success: i32 = 0;
     glad.glGetShaderiv(vertex, glad.GL_COMPILE_STATUS, &success);
     if (success == 0) {
-        var infoLog = try alloc.alloc(u8, 512);
+        const infoLog = try alloc.alloc(u8, 512);
         defer alloc.free(infoLog);
 
         glad.glGetShaderInfoLog(vertex, 512, null, infoLog.ptr);
@@ -185,7 +185,7 @@ pub fn init(gles: bool) !void {
 
     glad.glGetShaderiv(fragment, glad.GL_COMPILE_STATUS, &success);
     if (success == 0) {
-        var infoLog = try alloc.alloc(u8, 512);
+        const infoLog = try alloc.alloc(u8, 512);
         defer alloc.free(infoLog);
 
         glad.glGetShaderInfoLog(fragment, 512, null, infoLog.ptr);
@@ -200,7 +200,7 @@ pub fn init(gles: bool) !void {
 
     glad.glGetProgramiv(program, glad.GL_LINK_STATUS, &success);
     if (success == 0) {
-        var infoLog = try alloc.alloc(u8, 512);
+        const infoLog = try alloc.alloc(u8, 512);
         defer alloc.free(infoLog);
 
         glad.glGetProgramInfoLog(program, 512, null, infoLog.ptr);
@@ -213,7 +213,7 @@ pub fn init(gles: bool) !void {
 
     use();
 
-    var texLoc = glad.glGetUniformLocation(program, "tex");
+    const texLoc = glad.glGetUniformLocation(program, "tex");
     glad.glUniform1i(texLoc, 0);
 
     modelLoc = glad.glGetUniformLocation(program, "model");
@@ -222,7 +222,7 @@ pub fn init(gles: bool) !void {
     glad.glGenBuffers(1, &ubo);
     glad.glBindBuffer(glad.GL_UNIFORM_BUFFER, ubo);
     glad.glBufferData(glad.GL_UNIFORM_BUFFER, @sizeOf(Uniforms), null, glad.GL_STATIC_DRAW);
-    var blockIndex = glad.glGetUniformBlockIndex(program, "Matrices");
+    const blockIndex = glad.glGetUniformBlockIndex(program, "Matrices");
     glad.glBindBufferBase(glad.GL_UNIFORM_BUFFER, blockIndex, ubo);
 
     set_model(&identity);

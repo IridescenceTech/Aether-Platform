@@ -6,39 +6,36 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const glfw = b.addModule("glfw", .{
-        .source_file = .{ .path = "ext/zwin/glfw/src/glfw.zig" },
+        .root_source_file = .{ .path = "ext/zwin/glfw/src/glfw.zig" },
     });
 
     const zwin = b.addModule("zwin", .{
-        .source_file = .{ .path = "ext/zwin/src/zwin.zig" },
-        .dependencies = &.{
+        .root_source_file = .{ .path = "ext/zwin/src/zwin.zig" },
+        .imports = &.{
             .{ .name = "glfw", .module = glfw },
         },
     });
 
     const glad = b.addModule("glad", .{
-        .source_file = .{ .path = "ext/glad/c.zig" },
+        .root_source_file = .{ .path = "ext/glad/c.zig" },
     });
+    glad.addIncludePath(.{ .path = "ext/glad/include" });
+    glad.addIncludePath(.{ .path = "ext/glad/" });
 
     const stbi = b.addModule("stbi", .{
-        .source_file = .{ .path = "ext/stbi/c.zig" },
+        .root_source_file = .{ .path = "ext/stbi/c.zig" },
     });
-
-    const zig_tracy = b.anonymousDependency("./libs/zig-tracy", @import("ext/tracy/build.zig"), .{
-        .target = target,
-        .optimize = optimize,
-    });
+    stbi.addIncludePath(.{ .path = "ext/stbi/" });
 
     const gen = vkgen.VkGenerateStep.create(b, "ext/vk.xml");
 
     const platform = b.addModule("platform", .{
-        .source_file = .{ .path = "src/platform.zig" },
-        .dependencies = &.{
+        .root_source_file = .{ .path = "src/platform.zig" },
+        .imports = &.{
             .{ .name = "zwin", .module = zwin },
             .{ .name = "glad", .module = glad },
             .{ .name = "vulkan", .module = gen.getModule() },
             .{ .name = "stbi", .module = stbi },
-            .{ .name = "tracy", .module = zig_tracy.module("tracy") },
         },
     });
 
@@ -48,12 +45,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.addModule("platform", platform);
+    exe.root_module.addImport("platform", platform);
     exe.linkLibC();
     exe.linkSystemLibrary("glfw");
-    exe.addIncludePath(.{ .path = "ext/glad/include" });
-    exe.addIncludePath(.{ .path = "ext/glad/" });
-    exe.addIncludePath(.{ .path = "ext/stbi/" });
     exe.addCSourceFile(.{
         .file = .{ .path = "ext/glad/src/gl.c" },
         .flags = &[_][]const u8{"-Iext/glad/include"},
@@ -66,7 +60,6 @@ pub fn build(b: *std.Build) void {
         .file = .{ .path = "ext/stbi/stb_image.c" },
         .flags = &[_][]const u8{"-Iext/stbi/"},
     });
-    exe.linkLibrary(zig_tracy.artifact("tracy"));
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

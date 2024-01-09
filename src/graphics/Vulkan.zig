@@ -16,14 +16,14 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     try zwin.init(.Vulkan, 1, 3);
 
     const alloc = try Allocator.allocator();
-    var copy = try alloc.dupeZ(u8, title);
+    const copy = try alloc.dupeZ(u8, title);
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
 
     try self.context.init(copy);
 
-    var extent = vk.Extent2D{ .width = width, .height = height };
+    const extent = vk.Extent2D{ .width = width, .height = height };
     var swapchain = try Swapchain.init(&self.context, alloc, extent);
     defer swapchain.deinit();
 }
@@ -54,7 +54,7 @@ pub fn should_close(ctx: *anyopaque) bool {
 
 pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
     _ = ctx;
-    var tmesh: t.MeshInternal = undefined;
+    const tmesh: t.MeshInternal = undefined;
     return tmesh;
 }
 

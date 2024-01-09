@@ -48,7 +48,7 @@ pub fn main() !void {
 
     var g = platform.Graphics.get_interface();
 
-    var tex = g.load_texture("container.jpg");
+    const tex = g.load_texture("container.jpg");
     g.set_texture(tex);
 
     var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();

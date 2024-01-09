@@ -162,7 +162,7 @@ pub fn init(self: *Self, app_name: [:0]const u8) !void {
 fn create_surface(self: *Self) !vk.SurfaceKHR {
     var surface: vk.SurfaceKHR = undefined;
 
-    var cws: *const fn (vk.Instance, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result = @ptrCast(&zwin.createWindowSurface);
+    const cws: *const fn (vk.Instance, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result = @ptrCast(&zwin.createWindowSurface);
 
     if (cws(self.instance, null, &surface) != .success) {
         return error.SurfaceCreationFailed;

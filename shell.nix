@@ -3,7 +3,6 @@
 pkgs.mkShell {
 
   buildInputs = [
-    pkgs.zig
     pkgs.glfw
     pkgs.vulkan-headers
     pkgs.vulkan-loader

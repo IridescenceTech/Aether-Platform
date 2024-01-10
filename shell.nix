@@ -7,6 +7,7 @@ pkgs.mkShell {
     pkgs.vulkan-headers
     pkgs.vulkan-loader
     pkgs.vulkan-tools
+    pkgs.shaderc
   ];
 
   LD_LIBRARY_PATH="${pkgs.vulkan-loader}/lib";

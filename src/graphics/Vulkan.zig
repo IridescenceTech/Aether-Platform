@@ -8,6 +8,7 @@ const Allocator = @import("../allocator.zig");
 
 const Context = @import("Vulkan/Context.zig");
 const Swapchain = @import("Vulkan/Swapchain.zig").Swapchain;
+const Pipeline = @import("Vulkan/Pipeline.zig");
 
 swapchain: Swapchain = undefined,
 
@@ -27,11 +28,18 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
         .height = height,
     });
     std.log.debug("Swapchain Created!", .{});
+
+    try Pipeline.init(self.swapchain);
+    std.log.debug("Pipeline Created!", .{});
 }
 
 pub fn deinit(ctx: *anyopaque) void {
+    Pipeline.deinit();
+
     var self = t.coerce_ptr(Self, ctx);
     self.swapchain.deinit();
+
+    Context.deinit();
 
     zwin.deinit();
 }

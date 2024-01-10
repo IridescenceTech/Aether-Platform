@@ -29,6 +29,14 @@ pub fn build(b: *std.Build) void {
 
     const gen = vkgen.VkGenerateStep.create(b, "ext/vk.xml");
 
+    const shaders = vkgen.ShaderCompileStep.create(
+        b,
+        &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
+        "-o",
+    );
+    shaders.add("vert", "shaders/basic.vert", .{});
+    shaders.add("frag", "shaders/basic.frag", .{});
+
     const platform = b.addModule("platform", .{
         .root_source_file = .{ .path = "src/platform.zig" },
         .imports = &.{
@@ -36,6 +44,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "glad", .module = glad },
             .{ .name = "vulkan", .module = gen.getModule() },
             .{ .name = "stbi", .module = stbi },
+            .{ .name = "shaders", .module = shaders.getModule() },
         },
     });
 

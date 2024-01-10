@@ -7,10 +7,12 @@ const Self = @This();
 const Allocator = @import("../allocator.zig");
 
 const Context = @import("Vulkan/Context.zig");
+const Swapchain = @import("Vulkan/Swapchain.zig").Swapchain;
+
+swapchain: Swapchain = undefined,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     const self = t.coerce_ptr(Self, ctx);
-    _ = self; // autofix
     try zwin.init(.Vulkan, 1, 3);
 
     const alloc = try Allocator.allocator();
@@ -19,10 +21,17 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
 
     try zwin.createWindow(width, height, copy, false);
     try Context.init(copy);
+
+    self.swapchain = try Swapchain.init(.{
+        .width = width,
+        .height = height,
+    });
+    std.log.debug("Swapchain Created!", .{});
 }
 
 pub fn deinit(ctx: *anyopaque) void {
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+    self.swapchain.deinit();
 
     zwin.deinit();
 }

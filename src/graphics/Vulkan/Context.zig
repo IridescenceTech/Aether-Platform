@@ -152,7 +152,28 @@ pub fn init(name: [:0]const u8) !void {
     std.log.info("Vulkan Context Loaded!", .{});
 }
 
-pub fn deinit() void {}
+pub fn deinit() void {
+    vkd.destroyDevice(device, null);
+    vki.destroySurfaceKHR(instance, surface, null);
+    vki.destroyInstance(instance, null);
+}
+
+pub fn find_memory_type_index(memory_type_bits: u32, flags: vk.MemoryPropertyFlags) !u32 {
+    for (memory_properties.memory_types[0..memory_properties.memory_type_count], 0..) |mem_type, i| {
+        if (memory_type_bits & (@as(u32, 1) << @truncate(i)) != 0 and mem_type.property_flags.contains(flags)) {
+            return @truncate(i);
+        }
+    }
+
+    return error.NoSuitableMemoryType;
+}
+
+pub fn allocate(requirements: vk.MemoryRequirements, flags: vk.MemoryPropertyFlags) !vk.DeviceMemory {
+    return try vkd.allocateMemory(device, &.{
+        .allocation_size = requirements.size,
+        .memory_type_index = try find_memory_type_index(requirements.memory_type_bits, flags),
+    }, null);
+}
 
 pub fn create_surface() !void {
     if (glfwCreateWindowSurface(instance, zwin.get_api_window(), null, &surface) != .success) {

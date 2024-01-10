@@ -1,11 +1,10 @@
 const std = @import("std");
+const t = @import("../../types.zig");
 const vk = @import("vulkan");
 const zwin = @import("zwin");
-
 const Allocator = @import("../../allocator.zig");
-const Self = @This();
 
-const required_extensions = [_][*:0]const u8{vk.extension_info.khr_swapchain.name};
+const required_device_extensions = [_][*:0]const u8{vk.extension_info.khr_swapchain.name};
 
 const BaseDispatch = vk.BaseWrapper(.{
     .createInstance = true,
@@ -81,6 +80,86 @@ const DeviceDispatch = vk.DeviceWrapper(.{
     .cmdCopyBuffer = true,
 });
 
+// GLFW Functions
+extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
+extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, pdev: vk.PhysicalDevice, queuefamily: u32) c_int;
+extern fn glfwCreateWindowSurface(instance: vk.Instance, window: ?*anyopaque, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result;
+extern fn glfwGetRequiredInstanceExtensions(count: *u32) ?[*][*:0]const u8;
+
+pub var vkb: BaseDispatch = undefined;
+pub var vki: InstanceDispatch = undefined;
+pub var vkd: DeviceDispatch = undefined;
+
+pub var instance: vk.Instance = undefined;
+pub var surface: vk.SurfaceKHR = undefined;
+pub var physical_device: vk.PhysicalDevice = undefined;
+pub var physical_properties: vk.PhysicalDeviceProperties = undefined;
+pub var memory_properties: vk.PhysicalDeviceMemoryProperties = undefined;
+pub var device: vk.Device = undefined;
+pub var graphics_queue: Queue = undefined;
+pub var present_queue: Queue = undefined;
+
+pub const Queue = struct {
+    handle: vk.Queue,
+    family: u32,
+
+    fn init(family: u32) Queue {
+        return .{
+            .handle = vkd.getDeviceQueue(device, family, 0),
+            .family = family,
+        };
+    }
+};
+
+pub fn init(name: [:0]const u8) !void {
+    vkb = try BaseDispatch.load(glfwGetInstanceProcAddress);
+
+    var exts_count: u32 = 0;
+    const glfw_exts = glfwGetRequiredInstanceExtensions(&exts_count);
+
+    const app_info = vk.ApplicationInfo{
+        .p_application_name = name,
+        .application_version = vk.makeApiVersion(0, 0, 0, 0),
+        .p_engine_name = "Project Aether",
+        .engine_version = vk.makeApiVersion(0, 0, 0, 0),
+        .api_version = vk.API_VERSION_1_3,
+    };
+
+    instance = try vkb.createInstance(&.{
+        .p_application_info = &app_info,
+        .enabled_extension_count = exts_count,
+        .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(glfw_exts)),
+    }, null);
+
+    vki = try InstanceDispatch.load(instance, vkb.dispatch.vkGetInstanceProcAddr);
+    errdefer vki.destroyInstance(instance, null);
+
+    try create_surface();
+
+    const candidate = try pick_physical_device();
+    physical_device = candidate.pdev;
+    physical_properties = candidate.props;
+    std.log.info("Picked device {s}", .{std.mem.sliceTo(&physical_properties.device_name, 0)});
+
+    device = try initialize_candidate(candidate);
+    vkd = try DeviceDispatch.load(device, vki.dispatch.vkGetDeviceProcAddr);
+    errdefer vkd.destroyDevice(device, null);
+
+    memory_properties = vki.getPhysicalDeviceMemoryProperties(physical_device);
+    graphics_queue = Queue.init(candidate.queues.graphics_family);
+    present_queue = Queue.init(candidate.queues.present_family);
+
+    std.log.info("Vulkan Context Loaded!", .{});
+}
+
+pub fn deinit() void {}
+
+pub fn create_surface() !void {
+    if (glfwCreateWindowSurface(instance, zwin.get_api_window(), null, &surface) != .success) {
+        return error.SurfaceInitFailed;
+    }
+}
+
 const DeviceCandidate = struct {
     pdev: vk.PhysicalDevice,
     props: vk.PhysicalDeviceProperties,
@@ -92,102 +171,20 @@ const QueueAllocation = struct {
     present_family: u32,
 };
 
-pub const Queue = struct {
-    handle: vk.Queue,
-    family: u32,
-
-    fn init(vkd: DeviceDispatch, dev: vk.Device, family: u32) Queue {
-        return .{
-            .handle = vkd.getDeviceQueue(dev, family, 0),
-            .family = family,
-        };
-    }
-};
-
-vk_base: BaseDispatch = undefined,
-vk_instance: InstanceDispatch = undefined,
-vk_device: DeviceDispatch = undefined,
-
-instance: vk.Instance = undefined,
-surface: vk.SurfaceKHR = undefined,
-physical_device: vk.PhysicalDevice = undefined,
-properties: vk.PhysicalDeviceProperties = undefined,
-memory_properties: vk.PhysicalDeviceMemoryProperties = undefined,
-device: vk.Device = undefined,
-
-graphics_queue: Queue = undefined,
-present_queue: Queue = undefined,
-
-pub fn init(self: *Self, app_name: [:0]const u8) !void {
-    self.vk_base = try BaseDispatch.load(@as(*const fn (vk.Instance, [*:0]const u8) ?*const fn () callconv(.C) void, @ptrCast(&zwin.getVKProcAddr)));
-
-    var glfw_exts_count: u32 = 0;
-    const glfw_exts = zwin.getRequiredInstanceExtensions(&glfw_exts_count);
-
-    const app_info = vk.ApplicationInfo{
-        .p_application_name = app_name,
-        .application_version = vk.makeApiVersion(0, 0, 0, 0),
-        .p_engine_name = "Project Aether",
-        .engine_version = vk.makeApiVersion(0, 0, 0, 0),
-        .api_version = vk.API_VERSION_1_3,
-    };
-
-    self.instance = try self.vk_base.createInstance(&.{
-        .p_application_info = &app_info,
-        .enabled_extension_count = glfw_exts_count,
-        .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(glfw_exts)),
-    }, null);
-
-    self.vk_instance = try InstanceDispatch.load(self.instance, self.vk_base.dispatch.vkGetInstanceProcAddr);
-    errdefer self.vk_instance.destroyInstance(self.instance, null);
-
-    self.surface = try self.create_surface();
-    errdefer self.vk_instance.destroySurfaceKHR(self.instance, self.surface, null);
-
-    const candidate = try self.pick_physical_device();
-    self.physical_device = candidate.pdev;
-    self.properties = candidate.props;
-
-    self.device = try self.initialize_candidate(candidate);
-    self.vk_device = try DeviceDispatch.load(self.device, self.vk_instance.dispatch.vkGetDeviceProcAddr);
-    errdefer self.vk_device.destroyDevice(self.dev, null);
-
-    self.graphics_queue = Queue.init(self.vk_device, self.device, candidate.queues.graphics_family);
-    self.present_queue = Queue.init(self.vk_device, self.device, candidate.queues.present_family);
-
-    self.memory_properties = self.vk_instance.getPhysicalDeviceMemoryProperties(self.physical_device);
-    std.debug.print("Using device: {s}\n", .{std.mem.sliceTo(&self.properties.device_name, 0)});
-}
-
-fn create_surface(self: *Self) !vk.SurfaceKHR {
-    var surface: vk.SurfaceKHR = undefined;
-
-    const cws: *const fn (vk.Instance, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result = @ptrCast(&zwin.createWindowSurface);
-
-    if (cws(self.instance, null, &surface) != .success) {
-        return error.SurfaceCreationFailed;
-    }
-
-    return surface;
-}
-
-fn pick_physical_device(self: *Self) !DeviceCandidate {
+pub fn pick_physical_device() !DeviceCandidate {
     var device_count: u32 = undefined;
-
-    _ = try self.vk_instance.enumeratePhysicalDevices(self.instance, &device_count, null);
-
-    if (device_count == 0) {
-        return error.NoSuitableDevice;
-    }
+    _ = try vki.enumeratePhysicalDevices(instance, &device_count, null);
 
     const alloc = try Allocator.allocator();
     const pdevs = try alloc.alloc(vk.PhysicalDevice, device_count);
     defer alloc.free(pdevs);
 
-    _ = try self.vk_instance.enumeratePhysicalDevices(self.instance, &device_count, pdevs.ptr);
+    _ = try vki.enumeratePhysicalDevices(instance, &device_count, pdevs.ptr);
+
+    std.log.debug("Found {} physical devices", .{pdevs.len});
 
     for (pdevs) |pdev| {
-        if (try self.check_device(pdev)) |candidate| {
+        if (try check_suitable(pdev)) |candidate| {
             return candidate;
         }
     }
@@ -195,49 +192,28 @@ fn pick_physical_device(self: *Self) !DeviceCandidate {
     return error.NoSuitableDevice;
 }
 
-fn check_device(self: *Self, pdev: vk.PhysicalDevice) !?DeviceCandidate {
-    const props = self.vk_instance.getPhysicalDeviceProperties(pdev);
-
-    if (!try self.check_extension_support(pdev)) {
-        return null;
-    }
-
-    if (!try self.check_surface_support(pdev)) {
-        return null;
-    }
-
-    if (try self.allocate_queues(pdev)) |allocation| {
-        return DeviceCandidate{
-            .pdev = pdev,
-            .props = props,
-            .queues = allocation,
-        };
-    }
-
-    return null;
-}
-
-fn check_surface_support(self: *Self, pdev: vk.PhysicalDevice) !bool {
-    var format_count: u32 = undefined;
-    var present_mode_count: u32 = undefined;
-
-    _ = try self.vk_instance.getPhysicalDeviceSurfaceFormatsKHR(pdev, self.surface, &format_count, null);
-    _ = try self.vk_instance.getPhysicalDeviceSurfacePresentModesKHR(pdev, self.surface, &present_mode_count, null);
-
-    return format_count > 0 and present_mode_count > 0;
-}
-
-fn check_extension_support(self: *Self, pdev: vk.PhysicalDevice) !bool {
+pub fn check_surface_support(pdev: vk.PhysicalDevice) !bool {
     var count: u32 = undefined;
-    _ = try self.vk_instance.enumerateDeviceExtensionProperties(pdev, null, &count, null);
+    _ = try vki.getPhysicalDeviceSurfaceFormatsKHR(pdev, surface, &count, null);
+
+    var present_mode_count: u32 = undefined;
+    _ = try vki.getPhysicalDeviceSurfacePresentModesKHR(pdev, surface, &present_mode_count, null);
+
+    return count > 0 and present_mode_count > 0;
+}
+
+pub fn check_extension_support(pdev: vk.PhysicalDevice) !bool {
+    var count: u32 = undefined;
+
+    _ = try vki.enumerateDeviceExtensionProperties(pdev, null, &count, null);
 
     const alloc = try Allocator.allocator();
     const propsv = try alloc.alloc(vk.ExtensionProperties, count);
     defer alloc.free(propsv);
 
-    _ = try self.vk_instance.enumerateDeviceExtensionProperties(pdev, null, &count, propsv.ptr);
+    _ = try vki.enumerateDeviceExtensionProperties(pdev, null, &count, propsv.ptr);
 
-    for (required_extensions) |ext| {
+    for (required_device_extensions) |ext| {
         for (propsv) |props| {
             if (std.mem.eql(u8, std.mem.span(ext), std.mem.sliceTo(&props.extension_name, 0))) {
                 break;
@@ -250,15 +226,42 @@ fn check_extension_support(self: *Self, pdev: vk.PhysicalDevice) !bool {
     return true;
 }
 
-fn allocate_queues(self: *Self, pdev: vk.PhysicalDevice) !?QueueAllocation {
+pub fn check_suitable(pdev: vk.PhysicalDevice) !?DeviceCandidate {
+    const props = vki.getPhysicalDeviceProperties(pdev);
+
+    if (!try check_extension_support(pdev)) {
+        return null;
+    }
+    std.log.debug("Device has extensions!", .{});
+
+    if (!try check_surface_support(pdev)) {
+        return null;
+    }
+    std.log.debug("Device has surface!", .{});
+
+    if (try allocate_queues(pdev)) |allocation| {
+        return DeviceCandidate{
+            .pdev = pdev,
+            .props = props,
+            .queues = allocation,
+        };
+    }
+
+    return null;
+}
+
+pub fn allocate_queues(pdev: vk.PhysicalDevice) !?QueueAllocation {
     var family_count: u32 = undefined;
-    self.vk_instance.getPhysicalDeviceQueueFamilyProperties(pdev, &family_count, null);
+
+    vki.getPhysicalDeviceQueueFamilyProperties(pdev, &family_count, null);
+
+    std.log.debug("Found {} queue families", .{family_count});
 
     const alloc = try Allocator.allocator();
     const families = try alloc.alloc(vk.QueueFamilyProperties, family_count);
     defer alloc.free(families);
 
-    self.vk_instance.getPhysicalDeviceQueueFamilyProperties(pdev, &family_count, families.ptr);
+    vki.getPhysicalDeviceQueueFamilyProperties(pdev, &family_count, families.ptr);
 
     var graphics_family: ?u32 = null;
     var present_family: ?u32 = null;
@@ -268,47 +271,44 @@ fn allocate_queues(self: *Self, pdev: vk.PhysicalDevice) !?QueueAllocation {
 
         if (graphics_family == null and properties.queue_flags.graphics_bit) {
             graphics_family = family;
+            std.log.debug("Found graphics family!", .{});
         }
 
-        if (present_family == null and (try self.vk_instance.getPhysicalDeviceSurfaceSupportKHR(pdev, family, self.surface)) == vk.TRUE) {
+        if (present_family == null and (try vki.getPhysicalDeviceSurfaceSupportKHR(pdev, family, surface)) == vk.TRUE) {
             present_family = family;
+
+            std.log.debug("Found present family!", .{});
         }
     }
 
-    if (graphics_family == null or present_family == null) {
-        return null;
+    if (graphics_family != null and present_family != null) {
+        return QueueAllocation{
+            .graphics_family = graphics_family.?,
+            .present_family = present_family.?,
+        };
     }
 
-    return QueueAllocation{
-        .graphics_family = graphics_family.?,
-        .present_family = present_family.?,
-    };
+    return null;
 }
 
-fn initialize_candidate(self: *Self, candidate: DeviceCandidate) !vk.Device {
+pub fn initialize_candidate(candidate: DeviceCandidate) !vk.Device {
     const priority = [_]f32{1};
-    const qci = [_]vk.DeviceQueueCreateInfo{
-        .{
-            .queue_family_index = candidate.queues.graphics_family,
-            .queue_count = 1,
-            .p_queue_priorities = &priority,
-        },
-        .{
-            .queue_family_index = candidate.queues.present_family,
-            .queue_count = 1,
-            .p_queue_priorities = &priority,
-        },
-    };
+    const qci = [_]vk.DeviceQueueCreateInfo{ .{
+        .queue_family_index = candidate.queues.graphics_family,
+        .queue_count = 1,
+        .p_queue_priorities = &priority,
+    }, .{
+        .queue_family_index = candidate.queues.present_family,
+        .queue_count = 1,
+        .p_queue_priorities = &priority,
+    } };
 
-    const queue_count: u32 = if (candidate.queues.graphics_family == candidate.queues.present_family)
-        1
-    else
-        2;
+    const queue_count: u32 = if (candidate.queues.graphics_family == candidate.queues.present_family) 1 else 2;
 
-    return try self.vk_instance.createDevice(candidate.pdev, &.{
+    return try vki.createDevice(candidate.pdev, &.{
         .queue_create_info_count = queue_count,
         .p_queue_create_infos = &qci,
-        .enabled_extension_count = required_extensions.len,
-        .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(&required_extensions)),
+        .enabled_extension_count = required_device_extensions.len,
+        .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(&required_device_extensions)),
     }, null);
 }

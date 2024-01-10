@@ -5,14 +5,12 @@ const vk = @import("vulkan");
 
 const Self = @This();
 const Allocator = @import("../allocator.zig");
-const Context = @import("Vulkan/Context.zig");
-const Swapchain = @import("Vulkan/Swapchain.zig");
 
-context: Context = Context{},
-swapchain: Swapchain = undefined,
+const Context = @import("Vulkan/Context.zig");
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
-    var self = t.coerce_ptr(Self, ctx);
+    const self = t.coerce_ptr(Self, ctx);
+    _ = self; // autofix
     try zwin.init(.Vulkan, 1, 3);
 
     const alloc = try Allocator.allocator();
@@ -20,12 +18,7 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     defer alloc.free(copy);
 
     try zwin.createWindow(width, height, copy, false);
-
-    try self.context.init(copy);
-
-    const extent = vk.Extent2D{ .width = width, .height = height };
-    var swapchain = try Swapchain.init(&self.context, alloc, extent);
-    defer swapchain.deinit();
+    try Context.init(copy);
 }
 
 pub fn deinit(ctx: *anyopaque) void {

@@ -1,10 +1,6 @@
 const std = @import("std");
 const platform = @import("platform");
 
-pub const std_options = struct {
-    pub const log_level = .info;
-};
-
 const Vertex = struct {
     pub const Layout = platform.Types.VertexLayout{
         .size = @sizeOf(Vertex),
@@ -40,7 +36,7 @@ pub fn main() !void {
         .width = 960,
         .height = 544,
         .title = "Hello, World!",
-        .graphics_api = .OpenGL,
+        .graphics_api = .Vulkan,
     });
     std.log.info("Hello, World!", .{});
 
@@ -48,22 +44,22 @@ pub fn main() !void {
 
     var g = platform.Graphics.get_interface();
 
-    const tex = g.load_texture("container.jpg");
-    g.set_texture(tex);
+    // const tex = g.load_texture("container.jpg");
+    // g.set_texture(tex);
 
-    var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
-    defer mesh.deinit();
+    // var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
+    // defer mesh.deinit();
 
-    try mesh.vertices.appendSlice(&[_]Vertex{
-        .{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } },
-        .{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } },
-        .{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } },
-        .{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } },
-    });
+    // try mesh.vertices.appendSlice(&[_]Vertex{
+    //     .{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } },
+    //     .{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } },
+    //     .{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } },
+    //     .{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } },
+    // });
 
-    try mesh.indices.appendSlice(&[_]u16{ 0, 1, 2, 2, 3, 0 });
+    // try mesh.indices.appendSlice(&[_]u16{ 0, 1, 2, 2, 3, 0 });
 
-    mesh.update();
+    // mesh.update();
 
     var curr_time = std.time.milliTimestamp();
 
@@ -75,7 +71,7 @@ pub fn main() !void {
         }
 
         g.start_frame();
-        mesh.draw();
+        // mesh.draw();
         g.end_frame();
     }
 }

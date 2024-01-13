@@ -105,7 +105,7 @@ fn create_render_pass(swapchain: Swapchain) !vk.RenderPass {
         .store_op = .store,
         .stencil_load_op = .dont_care,
         .stencil_store_op = .dont_care,
-        .initial_layout = undefined,
+        .initial_layout = .undefined,
         .final_layout = .present_src_khr,
     };
 
@@ -412,9 +412,7 @@ fn create_command_buffers(width: u16, height: u16) ![]vk.CommandBuffer {
 
         Ctx.vkd.cmdDraw(cmdbuf, vertices.len, 1, 0, 0);
 
-        std.log.info("FUCK!", .{});
         Ctx.vkd.cmdEndRenderPass(cmdbuf);
-        std.log.info("FUCK!", .{});
         try Ctx.vkd.endCommandBuffer(cmdbuf);
     }
 

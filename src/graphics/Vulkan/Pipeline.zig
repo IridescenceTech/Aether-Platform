@@ -12,6 +12,9 @@ pub var render_pass: vk.RenderPass = undefined;
 pub var pipeline: vk.Pipeline = undefined;
 pub var framebuffers: []vk.Framebuffer = undefined;
 pub var command_pool: vk.CommandPool = undefined;
+pub var buffer: vk.Buffer = undefined;
+pub var memory: vk.DeviceMemory = undefined;
+pub var cmd_buffers: []vk.CommandBuffer = undefined;
 
 const Vertex = struct {
     const binding_description = vk.VertexInputBindingDescription{
@@ -45,7 +48,7 @@ const vertices = [_]Vertex{
     .{ .pos = .{ -0.5, 0.5 }, .color = .{ 0, 0, 1 } },
 };
 
-pub fn init(swapchain: Swapchain) !void {
+pub fn init(width: u16, height: u16, swapchain: Swapchain) !void {
     //TODO: Setup Push Constants!
     pipeline_layout = try Ctx.vkd.createPipelineLayout(Ctx.device, &.{
         .flags = .{},
@@ -63,11 +66,32 @@ pub fn init(swapchain: Swapchain) !void {
     command_pool = try Ctx.vkd.createCommandPool(Ctx.device, &.{
         .queue_family_index = Ctx.graphics_queue.family,
     }, null);
+
+    buffer = try Ctx.vkd.createBuffer(Ctx.device, &.{
+        .size = @sizeOf(@TypeOf(vertices)),
+        .usage = .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
+        .sharing_mode = .exclusive,
+    }, null);
+
+    const mem_reqs = Ctx.vkd.getBufferMemoryRequirements(Ctx.device, buffer);
+    memory = try Ctx.allocate(mem_reqs, .{ .device_local_bit = true });
+
+    try Ctx.vkd.bindBufferMemory(Ctx.device, buffer, memory, 0);
+
+    try upload_vertices();
+
+    cmd_buffers = try create_command_buffers(width, height);
 }
 
 pub fn deinit() void {
+    destroy_command_buffers();
+
+    Ctx.vkd.freeMemory(Ctx.device, memory, null);
+    Ctx.vkd.destroyBuffer(Ctx.device, buffer, null);
     Ctx.vkd.destroyCommandPool(Ctx.device, command_pool, null);
+
     destroy_framebuffers();
+
     Ctx.vkd.destroyPipeline(Ctx.device, pipeline, null);
     Ctx.vkd.destroyRenderPass(Ctx.device, render_pass, null);
     Ctx.vkd.destroyPipelineLayout(Ctx.device, pipeline_layout, null);
@@ -95,7 +119,7 @@ fn create_render_pass(swapchain: Swapchain) !vk.RenderPass {
     ) };
 
     return try Ctx.vkd.createRenderPass(Ctx.device, &.{
-        .attachment_count = 12,
+        .attachment_count = 1,
         .p_attachments = @as([*]const vk.AttachmentDescription, @ptrCast(&color_attachment)),
         .subpass_count = 1,
         .p_subpasses = @as([*]const vk.SubpassDescription, @ptrCast(&subpass)),
@@ -259,4 +283,147 @@ fn destroy_framebuffers() void {
 
     const alloc = Allocator.allocator() catch unreachable;
     alloc.free(framebuffers);
+}
+
+fn upload_vertices() !void {
+    const staging_buffer = try Ctx.vkd.createBuffer(Ctx.device, &.{
+        .size = @sizeOf(@TypeOf(vertices)),
+        .usage = .{ .transfer_src_bit = true },
+        .sharing_mode = .exclusive,
+    }, null);
+    defer Ctx.vkd.destroyBuffer(Ctx.device, staging_buffer, null);
+    const mem_reqs = Ctx.vkd.getBufferMemoryRequirements(Ctx.device, staging_buffer);
+    const staging_memory = try Ctx.allocate(mem_reqs, .{ .host_visible_bit = true, .host_coherent_bit = true });
+    defer Ctx.vkd.freeMemory(Ctx.device, staging_memory, null);
+    try Ctx.vkd.bindBufferMemory(Ctx.device, staging_buffer, staging_memory, 0);
+
+    {
+        const data = try Ctx.vkd.mapMemory(Ctx.device, staging_memory, 0, vk.WHOLE_SIZE, .{});
+        defer Ctx.vkd.unmapMemory(Ctx.device, staging_memory);
+
+        const gpu_vertices: [*]Vertex = @ptrCast(@alignCast(data));
+        for (vertices, 0..) |vertex, i| {
+            gpu_vertices[i] = vertex;
+        }
+    }
+
+    try copy_buffer(buffer, staging_buffer, @sizeOf(@TypeOf(vertices)));
+}
+
+fn copy_buffer(dst: vk.Buffer, src: vk.Buffer, size: vk.DeviceSize) !void {
+    var cmdbuf: vk.CommandBuffer = undefined;
+    try Ctx.vkd.allocateCommandBuffers(Ctx.device, &.{
+        .command_pool = command_pool,
+        .level = .primary,
+        .command_buffer_count = 1,
+    }, @ptrCast(&cmdbuf));
+    defer Ctx.vkd.freeCommandBuffers(Ctx.device, command_pool, 1, @ptrCast(&cmdbuf));
+
+    try Ctx.vkd.beginCommandBuffer(cmdbuf, &.{
+        .flags = .{ .one_time_submit_bit = true },
+    });
+
+    const region = vk.BufferCopy{
+        .src_offset = 0,
+        .dst_offset = 0,
+        .size = size,
+    };
+    Ctx.vkd.cmdCopyBuffer(cmdbuf, src, dst, 1, @ptrCast(&region));
+
+    try Ctx.vkd.endCommandBuffer(cmdbuf);
+
+    const si = vk.SubmitInfo{
+        .command_buffer_count = 1,
+        .p_command_buffers = @ptrCast(&cmdbuf),
+        .p_wait_dst_stage_mask = undefined,
+    };
+    try Ctx.vkd.queueSubmit(Ctx.graphics_queue.handle, 1, @ptrCast(&si), .null_handle);
+    try Ctx.vkd.queueWaitIdle(Ctx.graphics_queue.handle);
+}
+
+const clear = [_]vk.ClearValue{
+    .{ .color = .{ .float_32 = .{ 0, 0, 0, 1 } } },
+};
+
+var extent = vk.Extent2D{
+    .width = 0,
+    .height = 0,
+};
+
+var viewport = vk.Viewport{
+    .x = 0,
+    .y = 0,
+    .width = 0.0,
+    .height = 0.0,
+    .min_depth = 0,
+    .max_depth = 1,
+};
+
+var scissor = vk.Rect2D{
+    .offset = .{ .x = 0, .y = 0 },
+    .extent = .{ .width = 0, .height = 0 },
+};
+
+fn create_command_buffers(width: u16, height: u16) ![]vk.CommandBuffer {
+    extent.width = width;
+    extent.height = height;
+
+    viewport.width = @floatFromInt(extent.width);
+    viewport.height = @floatFromInt(extent.height);
+
+    scissor.extent = extent;
+
+    const allocator = try Allocator.allocator();
+
+    const cmdbufs = try allocator.alloc(vk.CommandBuffer, framebuffers.len);
+    errdefer allocator.free(cmdbufs);
+
+    try Ctx.vkd.allocateCommandBuffers(Ctx.device, &.{
+        .command_pool = command_pool,
+        .level = .primary,
+        .command_buffer_count = @as(u32, @truncate(cmdbufs.len)),
+    }, cmdbufs.ptr);
+    errdefer Ctx.vkd.freeCommandBuffers(Ctx.device, command_pool, @truncate(cmdbufs.len), cmdbufs.ptr);
+
+    for (cmdbufs, framebuffers) |cmdbuf, framebuffer| {
+        try Ctx.vkd.beginCommandBuffer(cmdbuf, &.{});
+
+        Ctx.vkd.cmdSetViewport(cmdbuf, 0, 1, @ptrCast(&viewport));
+        Ctx.vkd.cmdSetScissor(cmdbuf, 0, 1, @ptrCast(&scissor));
+
+        // This needs to be a separate definition - see https://github.com/ziglang/zig/issues/7627.
+        const render_area = vk.Rect2D{
+            .offset = .{ .x = 0, .y = 0 },
+            .extent = extent,
+        };
+
+        Ctx.vkd.cmdBeginRenderPass(cmdbuf, &.{
+            .render_pass = render_pass,
+            .framebuffer = framebuffer,
+            .render_area = render_area,
+            .clear_value_count = 1,
+            .p_clear_values = &clear,
+        }, .@"inline");
+
+        Ctx.vkd.cmdBindPipeline(cmdbuf, .graphics, pipeline);
+        const offset = [_]vk.DeviceSize{0};
+
+        Ctx.vkd.cmdBindVertexBuffers(cmdbuf, 0, 1, @ptrCast(&buffer), &offset);
+
+        Ctx.vkd.cmdDraw(cmdbuf, vertices.len, 1, 0, 0);
+
+        std.log.info("FUCK!", .{});
+        Ctx.vkd.cmdEndRenderPass(cmdbuf);
+        std.log.info("FUCK!", .{});
+        try Ctx.vkd.endCommandBuffer(cmdbuf);
+    }
+
+    return cmdbufs;
+}
+
+fn destroy_command_buffers() void {
+    Ctx.vkd.freeCommandBuffers(Ctx.device, command_pool, @truncate(cmd_buffers.len), cmd_buffers.ptr);
+
+    const alloc = Allocator.allocator() catch unreachable;
+    alloc.free(cmd_buffers);
 }

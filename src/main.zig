@@ -62,13 +62,23 @@ pub fn main() !void {
     // mesh.update();
 
     var curr_time = std.time.milliTimestamp();
-
+    var fps_time = std.time.nanoTimestamp();
+    var fps: usize = 0;
     while (!g.should_close()) {
         const new_time = std.time.milliTimestamp();
         if (new_time - curr_time > 1000 / 144) {
             platform.poll_events();
             curr_time = new_time;
         }
+
+        const fp_time = std.time.nanoTimestamp();
+        if (fp_time - fps_time > 1_000_000_000) {
+            fps_time = fp_time;
+            std.log.err("FPS: {}", .{fps});
+            fps = 0;
+        }
+
+        fps += 1;
 
         g.start_frame();
         // mesh.draw();

@@ -29,14 +29,16 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     });
     std.log.debug("Swapchain Created!", .{});
 
-    try Pipeline.init(self.swapchain);
+    try Pipeline.init(width, height, self.swapchain);
     std.log.debug("Pipeline Created!", .{});
 }
 
 pub fn deinit(ctx: *anyopaque) void {
-    Pipeline.deinit();
-
     var self = t.coerce_ptr(Self, ctx);
+
+    try self.swapchain.waitForAllFences();
+
+    Pipeline.deinit();
     self.swapchain.deinit();
 
     Context.deinit();
@@ -49,7 +51,10 @@ pub fn start_frame(ctx: *anyopaque) void {
 }
 
 pub fn end_frame(ctx: *anyopaque) void {
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+
+    const cmdbuf = Pipeline.cmd_buffers[self.swapchain.image_index];
+    _ = self.swapchain.present(cmdbuf) catch unreachable;
 }
 
 pub fn set_vsync(ctx: *anyopaque, vsync: bool) void {

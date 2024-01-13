@@ -3,6 +3,7 @@ const t = @import("../../types.zig");
 const vk = @import("vulkan");
 const zwin = @import("zwin");
 const Allocator = @import("../../allocator.zig");
+const builtin = @import("builtin");
 
 const required_device_extensions = [_][*:0]const u8{vk.extension_info.khr_swapchain.name};
 
@@ -125,8 +126,12 @@ pub fn init(name: [:0]const u8) !void {
         .api_version = vk.API_VERSION_1_3,
     };
 
+    const validation_layers = "VK_LAYER_KHRONOS_validation";
+
     instance = try vkb.createInstance(&.{
         .p_application_info = &app_info,
+        .enabled_layer_count = if (builtin.mode != .Debug) 0 else 1,
+        .pp_enabled_layer_names = if (builtin.mode != .Debug) null else @as([*]const [*:0]const u8, @ptrCast(&validation_layers)),
         .enabled_extension_count = exts_count,
         .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(glfw_exts)),
     }, null);

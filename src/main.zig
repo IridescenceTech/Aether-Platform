@@ -47,17 +47,17 @@ pub fn main() !void {
     // const tex = g.load_texture("container.jpg");
     // g.set_texture(tex);
 
-    // var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
-    // defer mesh.deinit();
+    var mesh = try platform.Types.Mesh(Vertex, Vertex.Layout).init();
+    defer mesh.deinit();
 
-    // try mesh.vertices.appendSlice(&[_]Vertex{
-    //     .{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } },
-    //     .{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } },
-    //     .{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } },
-    //     .{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } },
-    // });
+    try mesh.vertices.appendSlice(&[_]Vertex{
+        .{ .pos = [_]f32{ -0.5, -0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 0.0 } },
+        .{ .pos = [_]f32{ 0.5, -0.5, 0.5 }, .color = 0xFFFF0000, .texture = [_]f32{ 1.0, 0.0 } },
+        .{ .pos = [_]f32{ 0.5, 0.5, 0.5 }, .color = 0xFF00FF00, .texture = [_]f32{ 1.0, 1.0 } },
+        .{ .pos = [_]f32{ -0.5, 0.5, 0.5 }, .color = 0xFF0000FF, .texture = [_]f32{ 0.0, 1.0 } },
+    });
 
-    // try mesh.indices.appendSlice(&[_]u16{ 0, 1, 2, 2, 3, 0 });
+    try mesh.indices.appendSlice(&[_]u16{ 0, 1, 2, 2, 3, 0 });
 
     // mesh.update();
 

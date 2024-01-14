@@ -31,6 +31,14 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
 
     try Pipeline.init(width, height, self.swapchain);
     std.log.debug("Pipeline Created!", .{});
+
+    extent.width = width;
+    extent.height = height;
+
+    viewports[0].width = @floatFromInt(width);
+    viewports[0].height = @floatFromInt(height);
+
+    scissors[0].extent = extent;
 }
 
 pub fn deinit(ctx: *anyopaque) void {
@@ -46,15 +54,80 @@ pub fn deinit(ctx: *anyopaque) void {
     zwin.deinit();
 }
 
+var extent = vk.Extent2D{
+    .width = 0,
+    .height = 0,
+};
+
+var scissors = [_]vk.Rect2D{
+    .{
+        .offset = .{ .x = 0, .y = 0 },
+        .extent = .{ .width = 0, .height = 0 },
+    },
+};
+
+var viewports = [_]vk.Viewport{
+    vk.Viewport{
+        .x = 0,
+        .y = 0,
+        .width = 960,
+        .height = 544,
+        .min_depth = 0,
+        .max_depth = 1,
+    },
+};
+
 pub fn start_frame(ctx: *anyopaque) void {
-    _ = ctx;
+    const self = t.coerce_ptr(Self, ctx);
+    Pipeline.current_cmd_buffer = &Pipeline.cmd_buffers[self.swapchain.image_index];
+
+    self.swapchain.start_frame() catch unreachable;
+
+    const cmdbuf = Pipeline.current_cmd_buffer.?.*;
+    Context.vkd.beginCommandBuffer(cmdbuf, &.{}) catch unreachable;
+
+    Context.vkd.cmdSetViewport(
+        cmdbuf,
+        0,
+        viewports.len,
+        &viewports,
+    );
+
+    Context.vkd.cmdSetScissor(
+        cmdbuf,
+        0,
+        scissors.len,
+        &scissors,
+    );
+
+    const render_area = vk.Rect2D{
+        .offset = .{ .x = 0, .y = 0 },
+        .extent = extent,
+    };
+
+    const clear_vals = [_]vk.ClearValue{
+        .{ .color = .{ .float_32 = .{ 1, 1, 1, 1 } } },
+    };
+
+    Context.vkd.cmdBeginRenderPass(cmdbuf, &.{
+        .render_pass = Pipeline.render_pass,
+        .framebuffer = Pipeline.framebuffers[self.swapchain.image_index],
+        .render_area = render_area,
+        .clear_value_count = clear_vals.len,
+        .p_clear_values = &clear_vals,
+    }, .@"inline");
+
+    Context.vkd.cmdBindPipeline(cmdbuf, .graphics, Pipeline.pipeline);
 }
 
 pub fn end_frame(ctx: *anyopaque) void {
     var self = t.coerce_ptr(Self, ctx);
+    const cmdbuf = Pipeline.current_cmd_buffer.?.*;
 
-    const cmdbuf = Pipeline.cmd_buffers[self.swapchain.image_index];
-    _ = self.swapchain.present(cmdbuf) catch unreachable;
+    Context.vkd.cmdEndRenderPass(cmdbuf);
+    Context.vkd.endCommandBuffer(cmdbuf) catch unreachable;
+
+    _ = self.swapchain.present_frame(cmdbuf) catch unreachable;
 }
 
 pub fn set_vsync(ctx: *anyopaque, vsync: bool) void {

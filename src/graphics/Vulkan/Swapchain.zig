@@ -160,13 +160,16 @@ pub const Swapchain = struct {
         return .fifo_khr;
     }
 
-    pub fn present(self: *Swapchain, cmdbuf: vk.CommandBuffer) !PresentState {
-        // Step 1: Make sure the current frame has finished rendering
+    pub fn start_frame(self: *Swapchain) !void {
+        // Step 1: Wait for frame
         const current = self.currentSwapImage();
         try current.waitForFence();
         try Ctx.vkd.resetFences(Ctx.device, 1, @ptrCast(&current.frame_fence));
+    }
 
+    pub fn present_frame(self: *Swapchain, cmdbuf: vk.CommandBuffer) !PresentState {
         // Step 2: Submit the command buffer
+        const current = self.currentSwapImage();
         const wait_stage = [_]vk.PipelineStageFlags{.{ .top_of_pipe_bit = true }};
         try Ctx.vkd.queueSubmit(Ctx.graphics_queue.handle, 1, &[_]vk.SubmitInfo{.{
             .wait_semaphore_count = 1,
@@ -231,7 +234,7 @@ pub const Swapchain = struct {
     }
 };
 
-const SwapImage = struct {
+pub const SwapImage = struct {
     image: vk.Image,
     view: vk.ImageView,
     image_acquired: vk.Semaphore,
@@ -280,7 +283,7 @@ const SwapImage = struct {
         Ctx.vkd.destroyFence(Ctx.device, self.frame_fence, null);
     }
 
-    fn waitForFence(self: SwapImage) !void {
+    pub fn waitForFence(self: SwapImage) !void {
         _ = try Ctx.vkd.waitForFences(Ctx.device, 1, @ptrCast(&self.frame_fence), vk.TRUE, std.math.maxInt(u64));
     }
 };

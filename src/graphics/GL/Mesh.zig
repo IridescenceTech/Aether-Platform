@@ -20,8 +20,8 @@ pub const Mesh = struct {
     vao: u32 = 0,
     vbo: u32 = 0,
     ebo: u32 = 0,
-    index_count: usize = 0,
     flags: Flags = undefined,
+    index_count: usize = 0,
     dead: bool = false,
 
     fn get_gltype(kind: t.VertexLayout.Type) u32 {
@@ -188,12 +188,10 @@ pub const MeshManager = struct {
     }
 
     pub fn deinit(self: *MeshManager) void {
-        for (self.list.items) |mesh| {
-            glad.glDeleteVertexArrays(1, &mesh.vao);
-            glad.glDeleteBuffers(1, &mesh.vbo);
-            glad.glDeleteBuffers(1, &mesh.ebo);
+        const alloc = Allocator.allocator() catch unreachable;
 
-            const alloc = Allocator.allocator() catch unreachable;
+        for (self.list.items) |mesh| {
+            mesh.gc();
             alloc.destroy(mesh);
         }
 

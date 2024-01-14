@@ -33,7 +33,7 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     });
     std.log.debug("Swapchain Created!", .{});
 
-    try Pipeline.init(width, height, self.swapchain);
+    try Pipeline.init(self.swapchain);
     std.log.debug("Pipeline Created!", .{});
 
     extent.width = width;

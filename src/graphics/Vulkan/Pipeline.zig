@@ -43,7 +43,7 @@ const Vertex = struct {
     color: [3]f32,
 };
 
-pub fn init(width: u16, height: u16, swapchain: Swapchain) !void {
+pub fn init(swapchain: Swapchain) !void {
     //TODO: Setup Push Constants!
     pipeline_layout = try Ctx.vkd.createPipelineLayout(Ctx.device, &.{
         .flags = .{},
@@ -63,7 +63,7 @@ pub fn init(width: u16, height: u16, swapchain: Swapchain) !void {
         .flags = .{ .reset_command_buffer_bit = true },
     }, null);
 
-    cmd_buffers = try create_command_buffers(width, height);
+    cmd_buffers = try create_command_buffers();
 }
 
 pub fn deinit() void {
@@ -266,38 +266,7 @@ fn destroy_framebuffers() void {
     alloc.free(framebuffers);
 }
 
-const clear = [_]vk.ClearValue{
-    .{ .color = .{ .float_32 = .{ 0, 0, 0, 1 } } },
-};
-
-var extent = vk.Extent2D{
-    .width = 0,
-    .height = 0,
-};
-
-var viewport = vk.Viewport{
-    .x = 0,
-    .y = 0,
-    .width = 0.0,
-    .height = 0.0,
-    .min_depth = 0,
-    .max_depth = 1,
-};
-
-var scissor = vk.Rect2D{
-    .offset = .{ .x = 0, .y = 0 },
-    .extent = .{ .width = 0, .height = 0 },
-};
-
-fn create_command_buffers(width: u16, height: u16) ![]vk.CommandBuffer {
-    extent.width = width;
-    extent.height = height;
-
-    viewport.width = @floatFromInt(extent.width);
-    viewport.height = @floatFromInt(extent.height);
-
-    scissor.extent = extent;
-
+fn create_command_buffers() ![]vk.CommandBuffer {
     const allocator = try Allocator.allocator();
 
     const cmdbufs = try allocator.alloc(vk.CommandBuffer, framebuffers.len);

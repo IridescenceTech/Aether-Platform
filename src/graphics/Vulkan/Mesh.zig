@@ -8,22 +8,25 @@ const Pipeline = @import("Pipeline.zig");
 const shaders = @import("shaders");
 
 pub const Mesh = struct {
-    vert_buffer: ?vk.Buffer = null,
-    vert_memory: ?vk.DeviceMemory = null,
-    idx_buffer: ?vk.Buffer = null,
-    idx_memory: ?vk.DeviceMemory = null,
+    vert_buffer: vk.Buffer = undefined,
+    vert_memory: vk.DeviceMemory = undefined,
+    idx_buffer: vk.Buffer = undefined,
+    idx_memory: vk.DeviceMemory = undefined,
+    initialized: bool = false,
+    idx_count: usize = 0,
+    dead: bool = false,
 
     fn create_buffer(size: usize, usage: vk.BufferUsageFlags, memory_property: vk.MemoryPropertyFlags, buffer: *vk.Buffer, memory: *vk.DeviceMemory) !void {
-        buffer = try Ctx.vkd.createBuffer(Ctx.device, &.{
+        buffer.* = try Ctx.vkd.createBuffer(Ctx.device, &.{
             .size = @intCast(size),
             .usage = usage,
             .sharing_mode = .exclusive,
         }, null);
 
-        const mem_reqs = Ctx.vkd.getBufferMemoryRequirements(Ctx.device, buffer);
-        memory = try Ctx.allocate(mem_reqs, memory_property);
+        const mem_reqs = Ctx.vkd.getBufferMemoryRequirements(Ctx.device, buffer.*);
+        memory.* = try Ctx.allocate(mem_reqs, memory_property);
 
-        try Ctx.vkd.bindBufferMemory(Ctx.device, buffer, memory, 0);
+        try Ctx.vkd.bindBufferMemory(Ctx.device, buffer.*, memory.*, 0);
     }
 
     fn copy_buffer(src: vk.Buffer, dst: vk.Buffer, size: vk.DeviceSize) !void {
@@ -63,8 +66,8 @@ pub const Mesh = struct {
 
         {
             // Create staging buffer
-            const staging_buffer: vk.Buffer = undefined;
-            const staging_buffer_memory: vk.DeviceMemory = undefined;
+            var staging_buffer: vk.Buffer = undefined;
+            var staging_buffer_memory: vk.DeviceMemory = undefined;
             create_buffer(
                 vert_size,
                 .{ .transfer_src_bit = true },
@@ -77,7 +80,7 @@ pub const Mesh = struct {
 
             // Transfer data from RAM to staging buffer
             {
-                const data = try Ctx.vkd.mapMemory(Ctx.device, staging_buffer_memory, 0, vk.WHOLE_SIZE, .{});
+                const data = Ctx.vkd.mapMemory(Ctx.device, staging_buffer_memory, 0, vk.WHOLE_SIZE, .{}) catch unreachable;
                 defer Ctx.vkd.unmapMemory(Ctx.device, staging_buffer_memory);
                 const gpu_buffer: [*]u8 = @ptrCast(@alignCast(data));
                 const vert_buffer: [*]const u8 = @ptrCast(@alignCast(vertices));
@@ -94,8 +97,8 @@ pub const Mesh = struct {
                 vert_size,
                 .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
                 .{ .device_local_bit = true },
-                self.vert_buffer,
-                self.vert_memory,
+                &self.vert_buffer,
+                &self.vert_memory,
             ) catch unreachable;
 
             copy_buffer(staging_buffer, self.vert_buffer, vert_size) catch unreachable;
@@ -103,8 +106,8 @@ pub const Mesh = struct {
 
         {
             // Create staging buffer
-            const staging_buffer: vk.Buffer = undefined;
-            const staging_buffer_memory: vk.DeviceMemory = undefined;
+            var staging_buffer: vk.Buffer = undefined;
+            var staging_buffer_memory: vk.DeviceMemory = undefined;
             create_buffer(
                 idx_size,
                 .{ .transfer_src_bit = true },
@@ -117,7 +120,7 @@ pub const Mesh = struct {
 
             // Transfer data from RAM to staging buffer
             {
-                const data = try Ctx.vkd.mapMemory(Ctx.device, staging_buffer_memory, 0, vk.WHOLE_SIZE, .{});
+                const data = Ctx.vkd.mapMemory(Ctx.device, staging_buffer_memory, 0, vk.WHOLE_SIZE, .{}) catch unreachable;
                 defer Ctx.vkd.unmapMemory(Ctx.device, staging_buffer_memory);
                 const gpu_buffer: [*]u8 = @ptrCast(@alignCast(data));
                 const idx_buffer: [*]const u8 = @ptrCast(@alignCast(indices));
@@ -134,17 +137,24 @@ pub const Mesh = struct {
                 idx_size,
                 .{ .transfer_dst_bit = true, .index_buffer_bit = true },
                 .{ .device_local_bit = true },
-                self.idx_buffer,
-                self.idx_memory,
+                &self.idx_buffer,
+                &self.idx_memory,
             ) catch unreachable;
 
             copy_buffer(staging_buffer, self.idx_buffer, idx_size) catch unreachable;
+            self.idx_count = ind_count;
         }
     }
 
     pub fn draw(ctx: *anyopaque) void {
-        _ = ctx; // autofix
+        const self = t.coerce_ptr(Mesh, ctx);
 
+        const cmdbuf = Pipeline.current_cmd_buffer.?.*;
+        const offsets = [_]vk.DeviceSize{0};
+        Ctx.vkd.cmdBindVertexBuffers(cmdbuf, 0, 1, @ptrCast(&self.vert_buffer), &offsets);
+        Ctx.vkd.cmdBindIndexBuffer(cmdbuf, self.idx_buffer, 0, .uint16);
+
+        Ctx.vkd.cmdDrawIndexed(cmdbuf, @intCast(self.idx_count), 1, 0, 0, 0);
     }
 
     pub fn deinit(ctx: *anyopaque) void {

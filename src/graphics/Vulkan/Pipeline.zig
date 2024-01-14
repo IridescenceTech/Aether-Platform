@@ -43,12 +43,6 @@ const Vertex = struct {
     color: [3]f32,
 };
 
-const vertices = [_]Vertex{
-    .{ .pos = .{ 0, -0.5 }, .color = .{ 1, 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5 }, .color = .{ 0, 1, 0 } },
-    .{ .pos = .{ -0.5, 0.5 }, .color = .{ 0, 0, 1 } },
-};
-
 pub fn init(width: u16, height: u16, swapchain: Swapchain) !void {
     //TODO: Setup Push Constants!
     pipeline_layout = try Ctx.vkd.createPipelineLayout(Ctx.device, &.{

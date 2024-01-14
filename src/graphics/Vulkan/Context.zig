@@ -79,6 +79,8 @@ const DeviceDispatch = vk.DeviceWrapper(.{
     .cmdSetScissor = true,
     .cmdBindVertexBuffers = true,
     .cmdCopyBuffer = true,
+    .cmdDrawIndexed = true,
+    .cmdBindIndexBuffer = true,
 });
 
 // GLFW Functions

@@ -10,7 +10,11 @@ const Context = @import("Vulkan/Context.zig");
 const Swapchain = @import("Vulkan/Swapchain.zig").Swapchain;
 const Pipeline = @import("Vulkan/Pipeline.zig");
 
+const MeshManager = @import("Vulkan/Mesh.zig").MeshManager;
+const Mesh = @import("Vulkan/Mesh.zig").Mesh;
+
 swapchain: Swapchain = undefined,
+meshes: MeshManager = undefined,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     const self = t.coerce_ptr(Self, ctx);
@@ -39,12 +43,17 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     viewports[0].height = @floatFromInt(height);
 
     scissors[0].extent = extent;
+
+    try self.meshes.init();
 }
 
 pub fn deinit(ctx: *anyopaque) void {
     var self = t.coerce_ptr(Self, ctx);
 
-    try self.swapchain.waitForAllFences();
+    Context.vkd.deviceWaitIdle(Context.device) catch unreachable;
+
+    self.meshes.deinit();
+    self.swapchain.waitForAllFences() catch unreachable;
 
     Pipeline.deinit();
     self.swapchain.deinit();
@@ -141,9 +150,13 @@ pub fn should_close(ctx: *anyopaque) bool {
 }
 
 pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
-    _ = ctx;
-    const tmesh: t.MeshInternal = undefined;
-    return tmesh;
+    var self = t.coerce_ptr(Self, ctx);
+    var alloc = Allocator.allocator() catch unreachable;
+    var mesh = alloc.create(Mesh) catch unreachable;
+    mesh.* = Mesh{};
+
+    self.meshes.list.append(mesh) catch unreachable;
+    return mesh.interface();
 }
 
 /// Loads a texture from the given path

@@ -59,7 +59,7 @@ pub fn main() !void {
 
     try mesh.indices.appendSlice(&[_]u16{ 0, 1, 2, 2, 3, 0 });
 
-    // mesh.update();
+    mesh.update();
 
     var curr_time = std.time.milliTimestamp();
     var fps_time = std.time.nanoTimestamp();
@@ -81,7 +81,7 @@ pub fn main() !void {
         fps += 1;
 
         g.start_frame();
-        // mesh.draw();
+        mesh.draw();
         g.end_frame();
     }
 }

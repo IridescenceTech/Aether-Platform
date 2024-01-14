@@ -138,6 +138,7 @@ fn create_pipeline() !void {
         .vertex_attribute_description_count = Vertex.attribute_description.len,
         .p_vertex_attribute_descriptions = &Vertex.attribute_description,
     };
+    _ = pvisci; // autofix
 
     const piasci = vk.PipelineInputAssemblyStateCreateInfo{
         .topology = .triangle_list,
@@ -197,7 +198,7 @@ fn create_pipeline() !void {
         .blend_constants = [_]f32{ 0, 0, 0, 0 },
     };
 
-    const dynstate = [_]vk.DynamicState{ .viewport, .scissor };
+    const dynstate = [_]vk.DynamicState{ .viewport, .scissor, .vertex_input_ext };
     const pdsci = vk.PipelineDynamicStateCreateInfo{
         .flags = .{},
         .dynamic_state_count = dynstate.len,
@@ -208,7 +209,7 @@ fn create_pipeline() !void {
         .flags = .{},
         .stage_count = 2,
         .p_stages = &pssci,
-        .p_vertex_input_state = &pvisci,
+        .p_vertex_input_state = null,
         .p_input_assembly_state = &piasci,
         .p_tessellation_state = null,
         .p_viewport_state = &pvsci,

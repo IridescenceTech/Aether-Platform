@@ -7,6 +7,10 @@ const Ctx = @import("Context.zig");
 const Pipeline = @import("Pipeline.zig");
 const shaders = @import("shaders");
 
+pub const POSITION_ATTRIBUTE = 0;
+pub const COLOR_ATTRIBUTE = 1;
+pub const TEXTURE_ATTRIBUTE = 2;
+
 pub const Mesh = struct {
     vert_buffer: vk.Buffer = undefined,
     vert_memory: vk.DeviceMemory = undefined,
@@ -15,6 +19,9 @@ pub const Mesh = struct {
     initialized: bool = false,
     idx_count: usize = 0,
     dead: bool = false,
+
+    bindings: std.ArrayList(vk.VertexInputBindingDescription2EXT) = undefined,
+    attributes: std.ArrayList(vk.VertexInputAttributeDescription2EXT) = undefined,
 
     fn create_buffer(size: usize, usage: vk.BufferUsageFlags, memory_property: vk.MemoryPropertyFlags, buffer: *vk.Buffer, memory: *vk.DeviceMemory) !void {
         buffer.* = try Ctx.vkd.createBuffer(Ctx.device, &.{
@@ -60,7 +67,71 @@ pub const Mesh = struct {
         try Ctx.vkd.queueWaitIdle(Ctx.graphics_queue.handle);
     }
 
+    fn get_format(dimensions: usize, normalized: bool, backing: t.VertexLayout.Type) vk.Format {
+        if (backing == .Float) {
+            return switch (dimensions) {
+                1 => .r32_sfloat,
+                2 => .r32g32_sfloat,
+                3 => .r32g32b32_sfloat,
+                4 => .r32g32b32a32_sfloat,
+                else => unreachable,
+            };
+        } else if (backing == .UByte) {
+            return switch (dimensions) {
+                1 => if (normalized) .r8_unorm else .r8_uint,
+                2 => if (normalized) .r8g8_unorm else .r8g8_uint,
+                3 => if (normalized) .r8g8b8_unorm else .r8g8b8_uint,
+                4 => if (normalized) .r8g8b8a8_unorm else .r8g8b8a8_uint,
+                else => unreachable,
+            };
+        }
+
+        return .r32g32b32_sfloat;
+    }
+
     pub fn update(ctx: *anyopaque, vertices: *anyopaque, vert_count: usize, indices: *anyopaque, ind_count: usize, layout: *const t.VertexLayout) void {
+        const self = t.coerce_ptr(Mesh, ctx);
+        const alloc = Allocator.allocator() catch unreachable;
+
+        if (!self.initialized) {
+            self.bindings = std.ArrayList(vk.VertexInputBindingDescription2EXT).init(alloc);
+            self.bindings.append(.{
+                .binding = 0,
+                .stride = @intCast(layout.size),
+                .input_rate = .vertex,
+                .divisor = 1,
+            }) catch unreachable;
+
+            self.attributes = std.ArrayList(vk.VertexInputAttributeDescription2EXT).init(alloc);
+
+            if (layout.vertex) |entry| {
+                self.attributes.append(vk.VertexInputAttributeDescription2EXT{
+                    .binding = 0,
+                    .location = POSITION_ATTRIBUTE,
+                    .offset = @intCast(entry.offset),
+                    .format = get_format(entry.dimensions, entry.normalize, entry.backing_type),
+                }) catch unreachable;
+            }
+
+            if (layout.color) |entry| {
+                self.attributes.append(vk.VertexInputAttributeDescription2EXT{
+                    .binding = 0,
+                    .location = COLOR_ATTRIBUTE,
+                    .offset = @intCast(entry.offset),
+                    .format = get_format(entry.dimensions, entry.normalize, entry.backing_type),
+                }) catch unreachable;
+            }
+
+            if (layout.texture) |entry| {
+                self.attributes.append(vk.VertexInputAttributeDescription2EXT{
+                    .binding = 0,
+                    .location = TEXTURE_ATTRIBUTE,
+                    .offset = @intCast(entry.offset),
+                    .format = get_format(entry.dimensions, entry.normalize, entry.backing_type),
+                }) catch unreachable;
+            }
+        }
+
         const vert_size = layout.size * vert_count;
         const idx_size = @sizeOf(u16) * ind_count;
 
@@ -92,7 +163,6 @@ pub const Mesh = struct {
             }
 
             // Create vertex buffer
-            const self = t.coerce_ptr(Mesh, ctx);
             create_buffer(
                 vert_size,
                 .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
@@ -132,7 +202,6 @@ pub const Mesh = struct {
             }
 
             // Create index buffer
-            const self = t.coerce_ptr(Mesh, ctx);
             create_buffer(
                 idx_size,
                 .{ .transfer_dst_bit = true, .index_buffer_bit = true },
@@ -151,6 +220,14 @@ pub const Mesh = struct {
 
         const cmdbuf = Pipeline.current_cmd_buffer.?.*;
         const offsets = [_]vk.DeviceSize{0};
+
+        Ctx.vkd.cmdSetVertexInputEXT(
+            cmdbuf,
+            @intCast(self.bindings.items.len),
+            self.bindings.items.ptr,
+            @intCast(self.attributes.items.len),
+            self.attributes.items.ptr,
+        );
         Ctx.vkd.cmdBindVertexBuffers(cmdbuf, 0, 1, @ptrCast(&self.vert_buffer), &offsets);
         Ctx.vkd.cmdBindIndexBuffer(cmdbuf, self.idx_buffer, 0, .uint16);
 
@@ -169,6 +246,9 @@ pub const Mesh = struct {
 
             Ctx.vkd.destroyBuffer(Ctx.device, self.vert_buffer, null);
             Ctx.vkd.freeMemory(Ctx.device, self.vert_memory, null);
+
+            self.bindings.clearAndFree();
+            self.attributes.clearAndFree();
         }
     }
 

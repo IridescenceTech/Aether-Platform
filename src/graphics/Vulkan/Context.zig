@@ -5,7 +5,7 @@ const zwin = @import("zwin");
 const Allocator = @import("../../allocator.zig");
 const builtin = @import("builtin");
 
-const required_device_extensions = [_][*:0]const u8{vk.extension_info.khr_swapchain.name};
+const required_device_extensions = [_][*:0]const u8{ vk.extension_info.khr_swapchain.name, vk.extension_info.ext_vertex_input_dynamic_state.name };
 
 const BaseDispatch = vk.BaseWrapper(.{
     .createInstance = true,
@@ -81,6 +81,7 @@ const DeviceDispatch = vk.DeviceWrapper(.{
     .cmdCopyBuffer = true,
     .cmdDrawIndexed = true,
     .cmdBindIndexBuffer = true,
+    .cmdSetVertexInputEXT = true,
 });
 
 // GLFW Functions
@@ -333,9 +334,12 @@ pub fn initialize_candidate(candidate: DeviceCandidate) !vk.Device {
 
     const queue_count: u32 = if (candidate.queues.graphics_family == candidate.queues.present_family) 1 else 2;
 
+    const dynamic_input = vk.PhysicalDeviceVertexInputDynamicStateFeaturesEXT{ .vertex_input_dynamic_state = vk.TRUE };
+
     return try vki.createDevice(candidate.pdev, &.{
         .queue_create_info_count = queue_count,
         .p_queue_create_infos = &qci,
+        .p_next = &dynamic_input,
         .enabled_extension_count = required_device_extensions.len,
         .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(&required_device_extensions)),
     }, null);

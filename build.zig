@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vkgen = @import("ext/vulkan/generator/index.zig");
 
 pub fn build(b: *std.Build) void {
@@ -56,7 +57,15 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("platform", platform);
     exe.linkLibC();
-    exe.linkSystemLibrary("glfw");
+
+    if (builtin.os.tag == .windows) {
+        //TODO: Move this somewhere else
+        exe.addObjectFile(.{ .path = "libglfw3.a" });
+        exe.linkSystemLibrary("opengl32");
+        exe.linkSystemLibrary("gdi32");
+    } else {
+        exe.linkSystemLibrary("glfw");
+    }
     exe.addCSourceFile(.{
         .file = .{ .path = "ext/glad/src/gl.c" },
         .flags = &[_][]const u8{"-Iext/glad/include"},

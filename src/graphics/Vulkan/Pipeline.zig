@@ -6,7 +6,29 @@ const Allocator = @import("../../allocator.zig");
 const Ctx = @import("Context.zig");
 const Swapchain = @import("Swapchain.zig").Swapchain;
 const shaders = @import("shaders");
+const Buffer = @import("Buffer.zig");
 
+pub const UniformBufferObject = struct {
+    proj: [16]f32 = [_]f32{
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    },
+    view: [16]f32 = [_]f32{
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    },
+};
+
+pub var descriptor_set_layout: vk.DescriptorSetLayout = undefined;
+pub var descriptor_pool: vk.DescriptorPool = undefined;
+pub var descriptor_sets: [1]vk.DescriptorSet = undefined;
+pub var uniform_buffer: vk.Buffer = undefined;
+pub var uniform_buffer_memory: vk.DeviceMemory = undefined;
+pub var uniform_mapped_memory: *UniformBufferObject = undefined;
 pub var pipeline_layout: vk.PipelineLayout = undefined;
 pub var render_pass: vk.RenderPass = undefined;
 pub var pipeline: vk.Pipeline = undefined;
@@ -17,43 +39,20 @@ pub var memory: vk.DeviceMemory = undefined;
 pub var cmd_buffers: []vk.CommandBuffer = undefined;
 pub var current_cmd_buffer: ?*vk.CommandBuffer = null;
 
-const Vertex = struct {
-    const binding_description = vk.VertexInputBindingDescription{
-        .binding = 0,
-        .stride = @sizeOf(Vertex),
-        .input_rate = .vertex,
-    };
-
-    const attribute_description = [_]vk.VertexInputAttributeDescription{
-        .{
-            .binding = 0,
-            .location = 0,
-            .format = .r32g32_sfloat,
-            .offset = @offsetOf(Vertex, "pos"),
-        },
-        .{
-            .binding = 0,
-            .location = 1,
-            .format = .r32g32b32_sfloat,
-            .offset = @offsetOf(Vertex, "color"),
-        },
-    };
-
-    pos: [2]f32,
-    color: [3]f32,
-};
-
 pub fn init(swapchain: Swapchain) !void {
     //TODO: Setup Push Constants!
+    try create_descriptor_set();
+
     pipeline_layout = try Ctx.vkd.createPipelineLayout(Ctx.device, &.{
         .flags = .{},
-        .set_layout_count = 0,
-        .p_set_layouts = undefined,
+        .set_layout_count = 1,
+        .p_set_layouts = @ptrCast(&descriptor_set_layout),
         .push_constant_range_count = 0,
         .p_push_constant_ranges = undefined,
     }, null);
 
     render_pass = try create_render_pass(swapchain);
+
     try create_pipeline();
 
     framebuffers = try create_framebuffers(swapchain);
@@ -75,6 +74,80 @@ pub fn deinit() void {
     Ctx.vkd.destroyPipeline(Ctx.device, pipeline, null);
     Ctx.vkd.destroyRenderPass(Ctx.device, render_pass, null);
     Ctx.vkd.destroyPipelineLayout(Ctx.device, pipeline_layout, null);
+    Ctx.vkd.destroyDescriptorPool(Ctx.device, descriptor_pool, null);
+    Ctx.vkd.destroyBuffer(Ctx.device, uniform_buffer, null);
+    Ctx.vkd.freeMemory(Ctx.device, uniform_buffer_memory, null);
+    Ctx.vkd.destroyDescriptorSetLayout(Ctx.device, descriptor_set_layout, null);
+}
+
+fn create_descriptor_set() !void {
+    const bindings = [_]vk.DescriptorSetLayoutBinding{
+        .{
+            .binding = 0,
+            .descriptor_type = .uniform_buffer,
+            .descriptor_count = 1,
+            .stage_flags = .{ .vertex_bit = true },
+        },
+    };
+
+    descriptor_set_layout = try Ctx.vkd.createDescriptorSetLayout(Ctx.device, &.{
+        .binding_count = 1,
+        .p_bindings = &bindings,
+    }, null);
+
+    try Buffer.create(
+        @sizeOf(UniformBufferObject),
+        .{ .uniform_buffer_bit = true },
+        .{ .host_visible_bit = true, .host_coherent_bit = true },
+        &uniform_buffer,
+        &uniform_buffer_memory,
+    );
+    const raw_ptr = try Ctx.vkd.mapMemory(Ctx.device, uniform_buffer_memory, 0, @sizeOf(UniformBufferObject), .{});
+    uniform_mapped_memory = @ptrCast(@alignCast(raw_ptr));
+    uniform_mapped_memory.* = UniformBufferObject{};
+
+    const pool_sizes = [_]vk.DescriptorPoolSize{
+        .{
+            .descriptor_count = 1,
+            .type = .uniform_buffer,
+        },
+    };
+
+    descriptor_pool = try Ctx.vkd.createDescriptorPool(Ctx.device, &.{
+        .pool_size_count = 1,
+        .p_pool_sizes = &pool_sizes,
+        .max_sets = 1,
+    }, null);
+
+    try Ctx.vkd.allocateDescriptorSets(Ctx.device, &.{
+        .descriptor_pool = descriptor_pool,
+        .descriptor_set_count = 1,
+        .p_set_layouts = @as([*]vk.DescriptorSetLayout, @ptrCast(&descriptor_set_layout)),
+    }, &descriptor_sets);
+
+    const buffer_info = [_]vk.DescriptorBufferInfo{
+        .{
+            .buffer = uniform_buffer,
+            .offset = 0,
+            .range = @sizeOf(UniformBufferObject),
+        },
+    };
+
+    @setRuntimeSafety(false);
+    const write_sets = [_]vk.WriteDescriptorSet{
+        .{
+            .dst_set = descriptor_sets[0],
+            .dst_binding = 0,
+            .dst_array_element = 0,
+            .descriptor_type = .uniform_buffer,
+            .descriptor_count = 1,
+            .p_buffer_info = &buffer_info,
+            .p_image_info = undefined,
+            .p_texel_buffer_view = undefined,
+        },
+    };
+
+    Ctx.vkd.updateDescriptorSets(Ctx.device, 1, &write_sets, 0, null);
 }
 
 fn create_render_pass(swapchain: Swapchain) !vk.RenderPass {
@@ -131,14 +204,6 @@ fn create_pipeline() !void {
             .p_name = "main",
         },
     };
-
-    const pvisci = vk.PipelineVertexInputStateCreateInfo{
-        .vertex_binding_description_count = 1,
-        .p_vertex_binding_descriptions = @ptrCast(&Vertex.binding_description),
-        .vertex_attribute_description_count = Vertex.attribute_description.len,
-        .p_vertex_attribute_descriptions = &Vertex.attribute_description,
-    };
-    _ = pvisci; // autofix
 
     const piasci = vk.PipelineInputAssemblyStateCreateInfo{
         .topology = .triangle_list,

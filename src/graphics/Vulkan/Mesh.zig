@@ -6,6 +6,7 @@ const Allocator = @import("../../allocator.zig");
 const Ctx = @import("Context.zig");
 const Pipeline = @import("Pipeline.zig");
 const shaders = @import("shaders");
+const Buffer = @import("Buffer.zig");
 
 pub const POSITION_ATTRIBUTE = 0;
 pub const COLOR_ATTRIBUTE = 1;
@@ -22,50 +23,6 @@ pub const Mesh = struct {
 
     bindings: std.ArrayList(vk.VertexInputBindingDescription2EXT) = undefined,
     attributes: std.ArrayList(vk.VertexInputAttributeDescription2EXT) = undefined,
-
-    fn create_buffer(size: usize, usage: vk.BufferUsageFlags, memory_property: vk.MemoryPropertyFlags, buffer: *vk.Buffer, memory: *vk.DeviceMemory) !void {
-        buffer.* = try Ctx.vkd.createBuffer(Ctx.device, &.{
-            .size = @intCast(size),
-            .usage = usage,
-            .sharing_mode = .exclusive,
-        }, null);
-
-        const mem_reqs = Ctx.vkd.getBufferMemoryRequirements(Ctx.device, buffer.*);
-        memory.* = try Ctx.allocate(mem_reqs, memory_property);
-
-        try Ctx.vkd.bindBufferMemory(Ctx.device, buffer.*, memory.*, 0);
-    }
-
-    fn copy_buffer(src: vk.Buffer, dst: vk.Buffer, size: vk.DeviceSize) !void {
-        var cmdbuf: vk.CommandBuffer = undefined;
-        try Ctx.vkd.allocateCommandBuffers(Ctx.device, &.{
-            .command_pool = Pipeline.command_pool,
-            .level = .primary,
-            .command_buffer_count = 1,
-        }, @ptrCast(&cmdbuf));
-        defer Ctx.vkd.freeCommandBuffers(Ctx.device, Pipeline.command_pool, 1, @ptrCast(&cmdbuf));
-
-        try Ctx.vkd.beginCommandBuffer(cmdbuf, &.{
-            .flags = .{ .one_time_submit_bit = true },
-        });
-
-        const region = vk.BufferCopy{
-            .src_offset = 0,
-            .dst_offset = 0,
-            .size = size,
-        };
-        Ctx.vkd.cmdCopyBuffer(cmdbuf, src, dst, 1, @ptrCast(&region));
-
-        try Ctx.vkd.endCommandBuffer(cmdbuf);
-
-        const si = vk.SubmitInfo{
-            .command_buffer_count = 1,
-            .p_command_buffers = @ptrCast(&cmdbuf),
-            .p_wait_dst_stage_mask = undefined,
-        };
-        try Ctx.vkd.queueSubmit(Ctx.graphics_queue.handle, 1, @ptrCast(&si), .null_handle);
-        try Ctx.vkd.queueWaitIdle(Ctx.graphics_queue.handle);
-    }
 
     fn get_format(dimensions: usize, normalized: bool, backing: t.VertexLayout.Type) vk.Format {
         if (backing == .Float) {
@@ -139,7 +96,7 @@ pub const Mesh = struct {
             // Create staging buffer
             var staging_buffer: vk.Buffer = undefined;
             var staging_buffer_memory: vk.DeviceMemory = undefined;
-            create_buffer(
+            Buffer.create(
                 vert_size,
                 .{ .transfer_src_bit = true },
                 .{ .host_visible_bit = true, .host_coherent_bit = true },
@@ -163,7 +120,7 @@ pub const Mesh = struct {
             }
 
             // Create vertex buffer
-            create_buffer(
+            Buffer.create(
                 vert_size,
                 .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
                 .{ .device_local_bit = true },
@@ -171,14 +128,14 @@ pub const Mesh = struct {
                 &self.vert_memory,
             ) catch unreachable;
 
-            copy_buffer(staging_buffer, self.vert_buffer, vert_size) catch unreachable;
+            Buffer.copy(staging_buffer, self.vert_buffer, vert_size) catch unreachable;
         }
 
         {
             // Create staging buffer
             var staging_buffer: vk.Buffer = undefined;
             var staging_buffer_memory: vk.DeviceMemory = undefined;
-            create_buffer(
+            Buffer.create(
                 idx_size,
                 .{ .transfer_src_bit = true },
                 .{ .host_visible_bit = true, .host_coherent_bit = true },
@@ -202,7 +159,7 @@ pub const Mesh = struct {
             }
 
             // Create index buffer
-            create_buffer(
+            Buffer.create(
                 idx_size,
                 .{ .transfer_dst_bit = true, .index_buffer_bit = true },
                 .{ .device_local_bit = true },
@@ -210,7 +167,7 @@ pub const Mesh = struct {
                 &self.idx_memory,
             ) catch unreachable;
 
-            copy_buffer(staging_buffer, self.idx_buffer, idx_size) catch unreachable;
+            Buffer.copy(staging_buffer, self.idx_buffer, idx_size) catch unreachable;
             self.idx_count = ind_count;
         }
     }

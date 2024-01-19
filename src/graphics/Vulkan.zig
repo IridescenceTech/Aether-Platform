@@ -127,6 +127,8 @@ pub fn start_frame(ctx: *anyopaque) void {
     }, .@"inline");
 
     Context.vkd.cmdBindPipeline(cmdbuf, .graphics, Pipeline.pipeline);
+
+    Context.vkd.cmdBindDescriptorSets(cmdbuf, .graphics, Pipeline.pipeline_layout, 0, 1, &Pipeline.descriptor_sets, 0, null);
 }
 
 pub fn end_frame(ctx: *anyopaque) void {

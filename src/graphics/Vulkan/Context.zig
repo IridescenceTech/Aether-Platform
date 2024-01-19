@@ -89,6 +89,7 @@ const DeviceDispatch = vk.DeviceWrapper(.{
     .allocateDescriptorSets = true,
     .updateDescriptorSets = true,
     .cmdBindDescriptorSets = true,
+    .cmdPushConstants = true,
 });
 
 // GLFW Functions

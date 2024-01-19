@@ -7,6 +7,16 @@ const Ctx = @import("Context.zig");
 const Swapchain = @import("Swapchain.zig").Swapchain;
 const shaders = @import("shaders");
 const Buffer = @import("Buffer.zig");
+pub const PushConstants = struct {
+    model: [16]f32 = [_]f32{
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    },
+    flags: u32 = 0,
+    texture: u32 = 0,
+};
 
 pub const UniformBufferObject = struct {
     proj: [16]f32 = [_]f32{
@@ -40,15 +50,22 @@ pub var cmd_buffers: []vk.CommandBuffer = undefined;
 pub var current_cmd_buffer: ?*vk.CommandBuffer = null;
 
 pub fn init(swapchain: Swapchain) !void {
-    //TODO: Setup Push Constants!
     try create_descriptor_set();
+
+    const push_constants = [_]vk.PushConstantRange{
+        .{
+            .offset = 0,
+            .size = @sizeOf(PushConstants),
+            .stage_flags = .{ .vertex_bit = true },
+        },
+    };
 
     pipeline_layout = try Ctx.vkd.createPipelineLayout(Ctx.device, &.{
         .flags = .{},
         .set_layout_count = 1,
         .p_set_layouts = @ptrCast(&descriptor_set_layout),
-        .push_constant_range_count = 0,
-        .p_push_constant_ranges = undefined,
+        .push_constant_range_count = 1,
+        .p_push_constant_ranges = &push_constants,
     }, null);
 
     render_pass = try create_render_pass(swapchain);

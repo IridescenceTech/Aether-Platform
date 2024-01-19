@@ -13,6 +13,13 @@ pub const COLOR_ATTRIBUTE = 1;
 pub const TEXTURE_ATTRIBUTE = 2;
 
 pub const Mesh = struct {
+    pub const Flags = packed struct {
+        texture_enabled: u1,
+        color_enabled: u1,
+        fixed_point5: u1,
+        reserved: u29,
+    };
+
     vert_buffer: vk.Buffer = undefined,
     vert_memory: vk.DeviceMemory = undefined,
     idx_buffer: vk.Buffer = undefined,
@@ -20,6 +27,8 @@ pub const Mesh = struct {
     initialized: bool = false,
     idx_count: usize = 0,
     dead: bool = false,
+    flags: Flags = undefined,
+    constants: Pipeline.PushConstants = Pipeline.PushConstants{},
 
     bindings: std.ArrayList(vk.VertexInputBindingDescription2EXT) = undefined,
     attributes: std.ArrayList(vk.VertexInputAttributeDescription2EXT) = undefined,
@@ -68,6 +77,14 @@ pub const Mesh = struct {
                     .offset = @intCast(entry.offset),
                     .format = get_format(entry.dimensions, entry.normalize, entry.backing_type),
                 }) catch unreachable;
+
+                if (entry.backing_type == t.VertexLayout.Type.UShort) {
+                    self.flags.fixed_point5 = 1;
+                } else {
+                    self.flags.fixed_point5 = 0;
+                }
+            } else {
+                self.flags.fixed_point5 = 0;
             }
 
             if (layout.color) |entry| {
@@ -77,6 +94,10 @@ pub const Mesh = struct {
                     .offset = @intCast(entry.offset),
                     .format = get_format(entry.dimensions, entry.normalize, entry.backing_type),
                 }) catch unreachable;
+
+                self.flags.color_enabled = 1;
+            } else {
+                self.flags.color_enabled = 0;
             }
 
             if (layout.texture) |entry| {
@@ -86,6 +107,10 @@ pub const Mesh = struct {
                     .offset = @intCast(entry.offset),
                     .format = get_format(entry.dimensions, entry.normalize, entry.backing_type),
                 }) catch unreachable;
+
+                self.flags.texture_enabled = 1;
+            } else {
+                self.flags.texture_enabled = 0;
             }
         }
 
@@ -185,10 +210,40 @@ pub const Mesh = struct {
             @intCast(self.attributes.items.len),
             self.attributes.items.ptr,
         );
-        Ctx.vkd.cmdBindVertexBuffers(cmdbuf, 0, 1, @ptrCast(&self.vert_buffer), &offsets);
-        Ctx.vkd.cmdBindIndexBuffer(cmdbuf, self.idx_buffer, 0, .uint16);
 
-        Ctx.vkd.cmdDrawIndexed(cmdbuf, @intCast(self.idx_count), 1, 0, 0, 0);
+        Ctx.vkd.cmdBindVertexBuffers(
+            cmdbuf,
+            0,
+            1,
+            @ptrCast(&self.vert_buffer),
+            &offsets,
+        );
+
+        Ctx.vkd.cmdBindIndexBuffer(
+            cmdbuf,
+            self.idx_buffer,
+            0,
+            .uint16,
+        );
+
+        self.constants.flags = @as(*u32, @ptrCast(&self.flags)).*;
+        Ctx.vkd.cmdPushConstants(
+            cmdbuf,
+            Pipeline.pipeline_layout,
+            .{ .vertex_bit = true },
+            0,
+            @sizeOf(Pipeline.PushConstants),
+            &self.constants,
+        );
+
+        Ctx.vkd.cmdDrawIndexed(
+            cmdbuf,
+            @intCast(self.idx_count),
+            1,
+            0,
+            0,
+            0,
+        );
     }
 
     pub fn deinit(ctx: *anyopaque) void {

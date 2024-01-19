@@ -71,6 +71,8 @@ pub const Mesh = struct {
 
             if (entry.backing_type == t.VertexLayout.Type.UShort) {
                 self.flags.fixed_point5 = 1;
+            } else {
+                self.flags.fixed_point5 = 0;
             }
         } else {
             self.flags.fixed_point5 = 0;

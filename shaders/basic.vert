@@ -12,8 +12,14 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 view;
 } ubo;
 
+layout (push_constant) uniform PushConstants {
+    mat4 model;
+    uint flags;
+    uint tex_id;
+} constants;
+
 void main() {
-    gl_Position = ubo.proj * ubo.view * vec4(a_pos, 1.0);
+    gl_Position = ubo.proj * ubo.view * constants.model * vec4(a_pos, 1.0);
     v_color = a_color;
     v_uv = a_texcoord;
 }

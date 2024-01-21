@@ -26,6 +26,7 @@ const InstanceDispatch = vk.InstanceWrapper(.{
     .getPhysicalDeviceSurfaceSupportKHR = true,
     .getPhysicalDeviceMemoryProperties = true,
     .getDeviceProcAddr = true,
+    .getPhysicalDeviceFeatures2 = true,
 });
 
 const DeviceDispatch = vk.DeviceWrapper(.{
@@ -342,12 +343,40 @@ pub fn initialize_candidate(candidate: DeviceCandidate) !vk.Device {
 
     const queue_count: u32 = if (candidate.queues.graphics_family == candidate.queues.present_family) 1 else 2;
 
-    const dynamic_input = vk.PhysicalDeviceVertexInputDynamicStateFeaturesEXT{ .vertex_input_dynamic_state = vk.TRUE };
+    const physical_features = vk.PhysicalDeviceFeatures{
+        .sampler_anisotropy = vk.TRUE,
+        .shader_sampled_image_array_dynamic_indexing = vk.TRUE,
+    };
+
+    var dynamic_input = vk.PhysicalDeviceVertexInputDynamicStateFeaturesEXT{
+        .vertex_input_dynamic_state = vk.TRUE,
+        .p_next = null,
+    };
+
+    var extended_dynamic_state = vk.PhysicalDeviceExtendedDynamicState3FeaturesEXT{
+        .p_next = &dynamic_input,
+    };
+    var descriptor_indexing_features = vk.PhysicalDeviceDescriptorIndexingFeatures{
+        .p_next = &extended_dynamic_state,
+    };
+    var device_features2 = vk.PhysicalDeviceFeatures2{
+        .p_next = &descriptor_indexing_features,
+        .features = physical_features,
+    };
+
+    vki.getPhysicalDeviceFeatures2(physical_device, &device_features2);
+
+    const bindless_supported = descriptor_indexing_features.descriptor_binding_partially_bound == vk.TRUE and descriptor_indexing_features.runtime_descriptor_array == vk.TRUE;
+    const extended_supported = extended_dynamic_state.extended_dynamic_state_3_color_blend_equation == vk.TRUE;
+
+    if (!bindless_supported or !extended_supported) {
+        return error.ExtensionNotPresent;
+    }
 
     return try vki.createDevice(candidate.pdev, &.{
         .queue_create_info_count = queue_count,
         .p_queue_create_infos = &qci,
-        .p_next = &dynamic_input,
+        .p_next = &device_features2,
         .enabled_extension_count = required_device_extensions.len,
         .pp_enabled_extension_names = @as([*]const [*:0]const u8, @ptrCast(&required_device_extensions)),
     }, null);

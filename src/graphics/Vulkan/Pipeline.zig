@@ -105,11 +105,33 @@ fn create_descriptor_set() !void {
             .descriptor_count = 1,
             .stage_flags = .{ .vertex_bit = true },
         },
+        .{
+            .binding = 1,
+            .descriptor_type = .combined_image_sampler,
+            .descriptor_count = 128,
+            .stage_flags = .{ .fragment_bit = true },
+        },
+    };
+
+    const bindless_flags = [_]vk.DescriptorBindingFlags{
+        .{},
+        .{
+            .partially_bound_bit = true,
+            .variable_descriptor_count_bit = true,
+            .update_after_bind_bit = true,
+        },
+    };
+
+    const extended_info = vk.DescriptorSetLayoutBindingFlagsCreateInfo{
+        .binding_count = bindings.len,
+        .p_binding_flags = &bindless_flags,
     };
 
     descriptor_set_layout = try Ctx.vkd.createDescriptorSetLayout(Ctx.device, &.{
-        .binding_count = 1,
+        .binding_count = bindings.len,
         .p_bindings = &bindings,
+        .flags = .{ .update_after_bind_pool_bit = true },
+        .p_next = &extended_info,
     }, null);
 
     try Buffer.create(
@@ -125,15 +147,20 @@ fn create_descriptor_set() !void {
 
     const pool_sizes = [_]vk.DescriptorPoolSize{
         .{
-            .descriptor_count = 1,
-            .type = .uniform_buffer,
+            .descriptor_count = bindings[0].descriptor_count,
+            .type = bindings[0].descriptor_type,
+        },
+        .{
+            .descriptor_count = bindings[1].descriptor_count,
+            .type = bindings[1].descriptor_type,
         },
     };
 
     descriptor_pool = try Ctx.vkd.createDescriptorPool(Ctx.device, &.{
-        .pool_size_count = 1,
+        .pool_size_count = pool_sizes.len,
         .p_pool_sizes = &pool_sizes,
-        .max_sets = 1,
+        .max_sets = 129,
+        .flags = .{ .update_after_bind_bit = true },
     }, null);
 
     try Ctx.vkd.allocateDescriptorSets(Ctx.device, &.{

@@ -74,13 +74,13 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     std.debug.print("OpenGL Version: {s}\n", .{str});
 
     try Shader.init(self.gles);
-    std.log.info("Shader created", .{});
+    std.log.debug("Shader created", .{});
     check_error();
     try self.meshes.init();
-    std.log.info("Meshes created", .{});
+    std.log.debug("Meshes created", .{});
     check_error();
     try self.textures.init();
-    std.log.info("Textures created", .{});
+    std.log.debug("Textures created", .{});
     check_error();
 }
 

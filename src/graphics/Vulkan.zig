@@ -12,9 +12,12 @@ const Pipeline = @import("Vulkan/Pipeline.zig");
 
 const MeshManager = @import("Vulkan/Mesh.zig").MeshManager;
 const Mesh = @import("Vulkan/Mesh.zig").Mesh;
+const Texture = @import("Vulkan/Texture.zig").Texture;
+const TextureManager = @import("Vulkan/Texture.zig").TextureManager;
 
 swapchain: Swapchain = undefined,
 meshes: MeshManager = undefined,
+textures: TextureManager = undefined,
 
 pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerror!void {
     const self = t.coerce_ptr(Self, ctx);
@@ -45,6 +48,9 @@ pub fn init(ctx: *anyopaque, width: u16, height: u16, title: []const u8) anyerro
     scissors[0].extent = extent;
 
     try self.meshes.init();
+    std.log.debug("Textures created", .{});
+    try self.textures.init();
+    std.log.debug("Meshes created", .{});
 }
 
 pub fn deinit(ctx: *anyopaque) void {
@@ -53,6 +59,7 @@ pub fn deinit(ctx: *anyopaque) void {
     Context.vkd.deviceWaitIdle(Context.device) catch unreachable;
 
     self.meshes.deinit();
+    self.textures.deinit();
     self.swapchain.waitForAllFences() catch unreachable;
 
     Pipeline.deinit();
@@ -163,38 +170,43 @@ pub fn create_mesh_internal(ctx: *anyopaque) t.MeshInternal {
 
 /// Loads a texture from the given path
 pub fn load_texture(ctx: *anyopaque, path: []const u8) t.Texture {
-    _ = path;
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+
+    const texture = self.textures.load_texture(path) catch self.textures.undefined_texture;
+    if (texture.id == self.textures.undefined_texture.id) {
+        std.log.warn("Texture not found: {s}", .{path});
+    }
 
     return .{
-        .index = 0,
-        .width = 0,
-        .height = 0,
+        .index = texture.id,
+        .width = texture.width,
+        .height = texture.height,
     };
 }
 
 /// Loads a texture from a buffer
 pub fn load_texture_from_buffer(ctx: *anyopaque, buffer: []const u8) t.Texture {
-    _ = buffer;
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+
+    const texture = self.textures.load_texture_from_buffer(buffer, null) catch unreachable;
 
     return .{
-        .index = 0,
-        .width = 0,
-        .height = 0,
+        .index = texture.id,
+        .width = texture.width,
+        .height = texture.height,
     };
 }
 
 /// Set the texture to be used for rendering
 pub fn set_texture(ctx: *anyopaque, texture: t.Texture) void {
-    _ = texture;
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+    self.textures.bind(texture);
 }
 
 /// Destroys a texture
 pub fn destroy_texture(ctx: *anyopaque, texture: t.Texture) void {
-    _ = texture;
-    _ = ctx;
+    var self = t.coerce_ptr(Self, ctx);
+    self.textures.delete(texture);
 }
 
 pub fn interface(self: *Self) t.GraphicsEngine {

@@ -12,6 +12,19 @@ pub const POSITION_ATTRIBUTE = 0;
 pub const COLOR_ATTRIBUTE = 1;
 pub const TEXTURE_ATTRIBUTE = 2;
 
+pub const MeshContext = struct {
+    matrix: [16]f32 = [_]f32{
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    },
+
+    texture: u32 = 1337,
+};
+
+pub var ActiveMeshContext = MeshContext{};
+
 pub const Mesh = struct {
     pub const Flags = packed struct {
         texture_enabled: u1,
@@ -226,6 +239,8 @@ pub const Mesh = struct {
             .uint16,
         );
 
+        self.constants.model = ActiveMeshContext.matrix;
+        self.constants.texture = ActiveMeshContext.texture;
         self.constants.flags = @as(*u32, @ptrCast(&self.flags)).*;
         Ctx.vkd.cmdPushConstants(
             cmdbuf,

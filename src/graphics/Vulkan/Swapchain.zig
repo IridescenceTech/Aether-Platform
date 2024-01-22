@@ -211,7 +211,7 @@ pub const Swapchain = struct {
 
     fn find_surface_format() !vk.SurfaceFormatKHR {
         const preferred = vk.SurfaceFormatKHR{
-            .format = .b8g8r8a8_srgb,
+            .format = .r8g8b8a8_unorm,
             .color_space = .srgb_nonlinear_khr,
         };
 

@@ -91,6 +91,12 @@ const DeviceDispatch = vk.DeviceWrapper(.{
     .updateDescriptorSets = true,
     .cmdBindDescriptorSets = true,
     .cmdPushConstants = true,
+    .createImage = true,
+    .createSampler = true,
+    .getImageMemoryRequirements = true,
+    .bindImageMemory = true,
+    .cmdPipelineBarrier = true,
+    .cmdCopyBufferToImage = true,
 });
 
 // GLFW Functions

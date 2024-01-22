@@ -1,6 +1,10 @@
 const std = @import("std");
+const vk = @import("vulkan");
 
+const Ctx = @import("Context.zig");
+const Image = @import("Image.zig");
 const Allocator = @import("../../allocator.zig");
+const Pipeline = @import("Pipeline.zig");
 const t = @import("../../types.zig");
 
 const stbi = @import("stbi");
@@ -13,6 +17,11 @@ pub const Texture = struct {
     path_hash: u32 = 0,
     hash: u32 = 0,
     ref_count: u32 = 0,
+
+    image: vk.Image,
+    view: vk.ImageView,
+    memory: vk.DeviceMemory,
+    sampler: vk.Sampler,
 };
 
 pub const TextureManager = struct {
@@ -104,7 +113,44 @@ pub const TextureManager = struct {
         tex.width = @intCast(width);
         tex.height = @intCast(height);
 
-        // TODO: Load into Vulkan
+        var buf: []const u8 = undefined;
+        buf.ptr = @ptrCast(data.?);
+        buf.len = @intCast(width * height * 4);
+
+        std.log.info("Creating Buffer {}", .{buf.len});
+
+        try Image.create_tex_image(tex.width, tex.height, buf, &tex.image, &tex.memory, .r8g8b8a8_srgb);
+        tex.view = try Image.create_image_view(tex.image, .r8g8b8a8_srgb);
+        tex.sampler = try Image.create_texture_sampler(.linear, .nearest);
+
+        const image_info = [_]vk.DescriptorImageInfo{
+            .{
+                .image_layout = .shader_read_only_optimal,
+                .image_view = tex.view,
+                .sampler = tex.sampler,
+            },
+        };
+
+        const descriptor = [_]vk.WriteDescriptorSet{
+            .{
+                .descriptor_count = 1,
+                .dst_set = Pipeline.descriptor_sets[0],
+                .dst_binding = 1,
+                .descriptor_type = .combined_image_sampler,
+                .dst_array_element = 0, // TODO
+                .p_image_info = &image_info,
+                .p_buffer_info = undefined,
+                .p_texel_buffer_view = undefined,
+            },
+        };
+
+        Ctx.vkd.updateDescriptorSets(
+            Ctx.device,
+            descriptor.len,
+            &descriptor,
+            0,
+            null,
+        );
 
         try self.list.append(tex);
         return tex;

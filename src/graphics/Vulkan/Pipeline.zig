@@ -163,10 +163,18 @@ fn create_descriptor_set() !void {
         .flags = .{ .update_after_bind_bit = true },
     }, null);
 
+    const max_binding = [_]u32{128};
+
+    const count_info = vk.DescriptorSetVariableDescriptorCountAllocateInfo{
+        .descriptor_set_count = 1,
+        .p_descriptor_counts = &max_binding,
+    };
+
     try Ctx.vkd.allocateDescriptorSets(Ctx.device, &.{
         .descriptor_pool = descriptor_pool,
         .descriptor_set_count = 1,
         .p_set_layouts = @as([*]vk.DescriptorSetLayout, @ptrCast(&descriptor_set_layout)),
+        .p_next = &count_info,
     }, &descriptor_sets);
 
     const buffer_info = [_]vk.DescriptorBufferInfo{
@@ -191,7 +199,13 @@ fn create_descriptor_set() !void {
         },
     };
 
-    Ctx.vkd.updateDescriptorSets(Ctx.device, 1, &write_sets, 0, null);
+    Ctx.vkd.updateDescriptorSets(
+        Ctx.device,
+        1,
+        &write_sets,
+        0,
+        null,
+    );
 }
 
 fn create_render_pass(swapchain: Swapchain) !vk.RenderPass {

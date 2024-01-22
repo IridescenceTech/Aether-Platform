@@ -6,6 +6,7 @@ const Image = @import("Image.zig");
 const Allocator = @import("../../allocator.zig");
 const Pipeline = @import("Pipeline.zig");
 const t = @import("../../types.zig");
+const Mesh = @import("Mesh.zig");
 
 const stbi = @import("stbi");
 
@@ -27,18 +28,100 @@ pub const Texture = struct {
 pub const TextureManager = struct {
     list: std.ArrayList(Texture) = undefined,
     undefined_texture: Texture = undefined,
+    latest_id: u8 = 0,
+    ids: [128]bool = undefined,
     bound: u32 = 1337,
 
     pub fn init(self: *TextureManager) !void {
         self.list = std.ArrayList(Texture).init(try Allocator.allocator());
 
-        // TODO: Create undefined texture
+        for (&self.ids) |*v| {
+            v.* = false;
+        }
+
+        self.latest_id = 0;
+
+        const PURPLE = 0xFFFF00FF;
+        const BLACK = 0xFF000000;
+
+        const data: [8 * 8]u32 = [_]u32{
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            PURPLE, PURPLE, PURPLE, PURPLE, BLACK,  BLACK,  BLACK,  BLACK,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+            BLACK,  BLACK,  BLACK,  BLACK,  PURPLE, PURPLE, PURPLE, PURPLE,
+        };
+
+        self.undefined_texture.id = 0;
+        self.undefined_texture.width = 8;
+        self.undefined_texture.height = 8;
+        try Image.create_tex_image(8, 8, std.mem.asBytes(&data), &self.undefined_texture.image, &self.undefined_texture.memory, .r8g8b8a8_srgb);
+        self.undefined_texture.view = try Image.create_image_view(self.undefined_texture.image, .r8g8b8a8_srgb);
+        self.undefined_texture.sampler = try Image.create_texture_sampler(.nearest, .nearest);
+
+        const image_info = [_]vk.DescriptorImageInfo{
+            .{
+                .image_layout = .shader_read_only_optimal,
+                .image_view = self.undefined_texture.view,
+                .sampler = self.undefined_texture.sampler,
+            },
+        };
+
+        var available_slot: u8 = self.latest_id;
+        var iters: u8 = 0;
+        while (self.ids[available_slot] and iters < 128) : (iters += 1) {
+            if (available_slot == 127) {
+                available_slot = 0;
+            }
+            available_slot += 1;
+        }
+
+        if (iters == 128) {
+            return error.TextureLoadError;
+        }
+
+        const descriptor = [_]vk.WriteDescriptorSet{
+            .{
+                .descriptor_count = 1,
+                .dst_set = Pipeline.descriptor_sets[0],
+                .dst_binding = 1,
+                .descriptor_type = .combined_image_sampler,
+                .dst_array_element = available_slot,
+                .p_image_info = &image_info,
+                .p_buffer_info = undefined,
+                .p_texel_buffer_view = undefined,
+            },
+        };
+
+        Ctx.vkd.updateDescriptorSets(
+            Ctx.device,
+            descriptor.len,
+            &descriptor,
+            0,
+            null,
+        );
+
+        self.ids[available_slot] = true;
+        self.latest_id = available_slot;
+
+        std.log.debug("Added undefined texture to slot {}", .{available_slot});
+        self.undefined_texture.id = available_slot;
     }
 
     pub fn deinit(self: *TextureManager) void {
+        Ctx.vkd.destroySampler(Ctx.device, self.undefined_texture.sampler, null);
+        Ctx.vkd.destroyImageView(Ctx.device, self.undefined_texture.view, null);
+        Ctx.vkd.destroyImage(Ctx.device, self.undefined_texture.image, null);
+        Ctx.vkd.freeMemory(Ctx.device, self.undefined_texture.memory, null);
+
         for (self.list.items) |tex| {
-            _ = tex; // autofix
-            // TODO: delete
+            Ctx.vkd.destroySampler(Ctx.device, tex.sampler, null);
+            Ctx.vkd.destroyImageView(Ctx.device, tex.view, null);
+            Ctx.vkd.destroyImage(Ctx.device, tex.image, null);
+            Ctx.vkd.freeMemory(Ctx.device, tex.memory, null);
         }
 
         self.list.clearAndFree();
@@ -131,18 +214,32 @@ pub const TextureManager = struct {
             },
         };
 
+        var available_slot: u8 = self.latest_id;
+        var iters: u8 = 0;
+        while (self.ids[available_slot] and iters < 128) : (iters += 1) {
+            if (available_slot == 127) {
+                available_slot = 0;
+            }
+            available_slot += 1;
+        }
+
+        if (iters == 128) {
+            return error.TextureLoadError;
+        }
+
         const descriptor = [_]vk.WriteDescriptorSet{
             .{
                 .descriptor_count = 1,
                 .dst_set = Pipeline.descriptor_sets[0],
                 .dst_binding = 1,
                 .descriptor_type = .combined_image_sampler,
-                .dst_array_element = 0, // TODO
+                .dst_array_element = available_slot,
                 .p_image_info = &image_info,
                 .p_buffer_info = undefined,
                 .p_texel_buffer_view = undefined,
             },
         };
+        std.log.debug("Added texture to slot {}", .{available_slot});
 
         Ctx.vkd.updateDescriptorSets(
             Ctx.device,
@@ -152,14 +249,17 @@ pub const TextureManager = struct {
             null,
         );
 
+        self.ids[available_slot] = true;
+        self.latest_id = available_slot;
+        tex.id = available_slot;
         try self.list.append(tex);
         return tex;
     }
 
     pub fn bind(self: *TextureManager, texture: t.Texture) void {
         _ = self; // autofix
-        _ = texture; // autofix
-        //TODO: Bind
+        std.log.debug("Binding texture {}", .{texture.index});
+        Mesh.ActiveMeshContext.texture = texture.index;
     }
 
     pub fn delete(self: *TextureManager, texture: t.Texture) void {
@@ -168,7 +268,11 @@ pub const TextureManager = struct {
             if (tex.id == texture.index) {
                 tex.ref_count -= 1;
                 if (tex.ref_count == 0) {
-                    //TODO: Delete
+                    Ctx.vkd.destroySampler(Ctx.device, tex.sampler, null);
+                    Ctx.vkd.destroyImageView(Ctx.device, tex.view, null);
+                    Ctx.vkd.destroyImage(Ctx.device, tex.image, null);
+                    Ctx.vkd.freeMemory(Ctx.device, tex.memory, null);
+
                     tex.id = 0;
                     remove_index = i;
                 }

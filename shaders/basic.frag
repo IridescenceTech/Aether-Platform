@@ -9,5 +9,5 @@ layout(location = 0) out vec4 f_color;
 layout(binding = 1) uniform sampler2D tex_sampler[128];
 
 void main() {
-    f_color = vec4(texture(tex_sampler[v_id], v_uv));
+    f_color = vec4(texture(tex_sampler[v_id + 1], v_uv));
 } 

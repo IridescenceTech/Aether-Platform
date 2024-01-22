@@ -203,7 +203,7 @@ pub const TextureManager = struct {
         std.log.info("Creating Buffer {}", .{buf.len});
 
         try Image.create_tex_image(tex.width, tex.height, buf, &tex.image, &tex.memory, .r8g8b8a8_srgb);
-        tex.view = try Image.create_image_view(tex.image, .r8g8b8a8_srgb);
+        tex.view = try Image.create_image_view(tex.image, .r8g8b8a8_unorm);
         tex.sampler = try Image.create_texture_sampler(.linear, .nearest);
 
         const image_info = [_]vk.DescriptorImageInfo{

@@ -30,7 +30,7 @@ const vShader =
     \\       // We're in 5 bit fixed point (1/32)
     \\       pos = vec3(aPos.x / 32.0, aPos.y / 32.0, aPos.z / 32.0);
     \\    }
-    \\    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    \\    gl_Position = projection * view * model * vec4(pos, 1.0);
     \\    vs_out.vertexColor = aCol;
     \\    vs_out.uv = aTex;
     \\}
@@ -64,7 +64,7 @@ const vShaderES =
     \\       // We're in 5 bit fixed point (1/32)
     \\       pos = vec3(aPos.x / 32.0, aPos.y / 32.0, aPos.z / 32.0);
     \\    }
-    \\    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    \\    gl_Position = projection * view * model * vec4(pos, 1.0);
     \\    vs_out.vertexColor = aCol;
     \\    vs_out.uv = aTex;
     \\    vs_out.flags = flags;

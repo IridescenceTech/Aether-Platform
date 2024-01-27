@@ -12,10 +12,10 @@ pub const GraphicsAPI = enum {
 
 /// Options for the game engine
 pub const EngineOptions = struct {
-    title: []const u8,
-    width: u16,
-    height: u16,
-    graphics_api: GraphicsAPI,
+    title: []const u8 = "Aether Engine",
+    width: u16 = 960,
+    height: u16 = 544,
+    graphics_api: GraphicsAPI = .OpenGL,
 };
 
 /// Texture object index

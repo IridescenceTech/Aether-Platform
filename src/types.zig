@@ -263,3 +263,36 @@ pub fn Mesh(comptime T: type, comptime V: VertexLayout) type {
         }
     };
 }
+
+/// Input APIs
+/// Analog Result for the input
+pub const AnalogResult = struct {
+    /// X-axis value
+    x: f32,
+
+    /// Y-axis value
+    y: f32,
+};
+
+/// Key State for the input
+pub const KeyState = enum {
+    Pressed,
+    Held,
+    Released,
+};
+
+/// Define existing keys
+pub const Key = enum(u16) {
+    Up,
+    Down,
+    Left,
+    Right,
+
+    LButton,
+    RButton,
+
+    Jump,
+    Attack,
+    Cancel,
+    Menu,
+};

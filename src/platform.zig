@@ -23,3 +23,21 @@ pub fn deinit() void {
     Graphics.deinit();
     Allocator.deinit();
 }
+
+pub fn get_number_analogs() u32 {
+    return 0;
+}
+
+pub fn get_analog_state(id: u8) t.AnalogResult {
+    if (id > get_number_analogs()) {
+        // TODO: Fallback
+        return t.AnalogResult{ .x = 0, .y = 0 };
+    }
+
+    return t.AnalogResult{ .x = 0, .y = 0 };
+}
+
+pub fn get_key_state(id: t.Key) t.KeyState {
+    _ = id; // autofix
+    return t.KeyState.Released;
+}
